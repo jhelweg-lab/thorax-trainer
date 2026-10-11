@@ -76,6 +76,9 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <label><span>Pause (sek)</span><input type="number" id="trest" min="0"></label>
   <label><span>Runder</span><input type="number" id="trounds" min="1"></label>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
+  <h2>Bluetooth</h2>
+  <label><span><input type="checkbox" id="allDev" style="min-width:auto"> Vis alle Bluetooth-enheder</span></label>
+  <p class="note">Normalt vises kun Nordic-maskiner (navn der starter med "NSTR"). Slå til, hvis listen er tom.</p>
   <h2>Log</h2>
   <p class="note">Optages hvert sekund, mens timeren kører.</p>
   <button id="bCopy">Kopiér CSV</button> <button id="bClr">Ryd log</button>
@@ -90,7 +93,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
-  tmode:'up',tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+  tmode:'up',allDev:false,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
@@ -261,7 +264,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wn','wn',1);
-  bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');
+  bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');
 }
 function buildLevels(){
   const c=$('lvl');c.innerHTML='';
@@ -281,7 +284,9 @@ async function connect(){
   if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig – brug Bluefy');return}
   try{
     setStatus('Vælg enhed… (træk i grebene for at vække maskinen)');
-    dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC_MAIN,SVC_UART]});
+    const opt=S.allDev?{acceptAllDevices:true,optionalServices:[SVC_MAIN,SVC_UART]}
+      :{filters:[{namePrefix:'NSTR'},{services:[SVC_MAIN]}],optionalServices:[SVC_MAIN,SVC_UART]};
+    dev=await navigator.bluetooth.requestDevice(opt);
     dev.addEventListener('gattserverdisconnected',()=>{setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind'});
     setStatus('Forbinder…');
     const srv=await dev.gatt.connect();
