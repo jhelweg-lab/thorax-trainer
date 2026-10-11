@@ -65,7 +65,7 @@ textarea{width:100%;min-height:150px;font-family:var(--mono);font-size:.76rem;ba
       <button id="readall" disabled>Læs alle (Read)</button>
     </div>
     <p class="msg" id="msg" style="margin:10px 0 0"></p>
-    <p class="hint" style="margin:8px 0 0">Luk Nordic Strong helt først. Maskinen tillader kun én forbindelse ad gangen. Vælg enheden "NSTR Nordic unset0".</p>
+    <p class="hint" style="margin:8px 0 0">Luk Nordic Strong helt først. Maskinen tillader kun én forbindelse ad gangen. Vælg enheden "NSTR Nordic unset0" på listen. Hvis den ikke kommer frem, så træk i grebene for at vække maskinen.</p>
   </div>
 
   <div class="panel">
@@ -197,12 +197,12 @@ textarea{width:100%;min-height:150px;font-family:var(--mono);font-size:.76rem;ba
     }
     try{
       dev = await navigator.bluetooth.requestDevice({
-        filters:[{namePrefix:'NSTR'}],
+        acceptAllDevices:true,
         optionalServices:[SVC_MAIN,SVC_UART]
       });
     }catch(e){
       if(e.name==='NotFoundError'||e.name==='AbortError'){ say('Ingen enhed valgt.'); return; }
-      say('Kunne ikke starte valg af enhed: '+e.message); return;
+      say('Kunne ikke starte valg af enhed: '+(e&&e.name?e.name+' ':'')+((e&&e.message)||String(e))); return;
     }
     dev.addEventListener('gattserverdisconnected',function(){
       setState(false,'Afbrudt'); $('disconnect').disabled=true; $('readall').disabled=true; $('wsend').disabled=true;
@@ -219,7 +219,7 @@ textarea{width:100%;min-height:150px;font-family:var(--mono);font-size:.76rem;ba
       dirty=true;
       say('Forbundet. Træk i grebene, og skift markering efter intensitet.');
     }catch(e){
-      setState(false,'Fejl'); say('Forbindelse fejlede: '+e.message);
+      setState(false,'Fejl'); say('Forbindelse fejlede: '+(e&&e.name?e.name+' ':'')+((e&&e.message)||String(e)));
     }
   }
 
@@ -262,10 +262,9 @@ textarea{width:100%;min-height:150px;font-family:var(--mono);font-size:.76rem;ba
 
   if(!navigator.bluetooth){
     say('Bluetooth er ikke tilgængelig i denne browser. Åbn siden i Bluefy (iOS) eller Chrome (Android/computer).');
-  } 
+  }
 })();
 </script>
 
 </body>
 </html>
-
