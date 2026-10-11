@@ -47,6 +47,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 <div id="top">
   <button id="bConn" class="pri">Forbind</button>
   <div id="status">Ikke forbundet</div>
+  <button id="bHR">♥ Puls</button>
   <button id="bDemo">Demo</button>
   <button id="bSet">⚙</button>
 </div>
@@ -69,6 +70,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <label><span>Watt-eksponent n</span><input type="number" id="wn" step="0.1"></label>
   <p class="note">Watt = k(modstand) × (skaleret hastighed)^n. Felter uden k viser "—". k pr. modstandsniveau 1–10:</p>
   <div class="kg" id="kgrid"></div>
+  <label><span>Maks. puls</span><input type="number" id="hrmax" min="100" max="230"></label>
   <h2>Timer</h2>
   <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Nedtælling</option><option value="int">Interval</option></select></label>
   <label><span>Nedtælling (min)</span><input type="number" id="tdown" min="0" step="0.5"></label>
@@ -93,7 +95,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
-  tmode:'up',allDev:false,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+  tmode:'up',allDev:false,hrmax:185,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
@@ -181,7 +183,7 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri'}
-function resetT(){pause();T.acc=0;T.finished=false;T.lastKey='';session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function resetT(){pause();T.acc=0;T.finished=false;T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>T.running?pause():startT();
 $('bReset').onclick=()=>{resetT()};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
@@ -194,6 +196,8 @@ function wattNow(){
   const k=parseFloat(S.k[S.level-1]);if(!(k>0))return null;
   const v=P.disp*S.scale;return v<=0.02?0:k*Math.pow(v,S.wn);
 }
+const HR={bpm:0,t:0,sum:0,n:0,max:0,dev:null};
+function hrNow(){return (HR.bpm&&performance.now()/1000-HR.t<5)?HR.bpm:0}
 const FIELDS={
   spm:{lab:'Slag/min',f:n=>{const v=spm(n);return[v?Math.round(v):'0','']}},
   avgspm:{lab:'Gns slag/min',f:n=>{const e=T.elapsed(),f=session.firstStrokeT;
@@ -209,6 +213,10 @@ const FIELDS={
   timer:{lab:'Timer',f:()=>[mmss(timerState().main),timerState().phase],cls:()=>timerState().cls},
   remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
   phase:{lab:'Fase',f:()=>[timerState().phase,''],sm:true,cls:()=>timerState().cls},
+  hr:{lab:'Puls',f:()=>{const b=hrNow();return[b?String(b):'—',b&&S.hrmax>0?Math.round(b/S.hrmax*100)+' % af maks':'bpm']},cls:()=>{const b=hrNow();if(!b||!(S.hrmax>0))return'';const z=b/S.hrmax;return z>=0.9?'done':z>=0.8?'rest':''}},
+  avghr:{lab:'Gns puls',f:()=>[HR.n?String(Math.round(HR.sum/HR.n)):'—','bpm']},
+  maxhr:{lab:'Maks puls (pas)',f:()=>[HR.max?String(HR.max):'—','bpm']},
+  hrpct:{lab:'% af maks puls',f:()=>{const b=hrNow();return[b&&S.hrmax>0?String(Math.round(b/S.hrmax*100)):'—','%']}},
   clock:{lab:'Klokken',f:()=>{const d=new Date();return[String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),'']}}
 };
 const FKEYS=Object.keys(FIELDS);
@@ -234,12 +242,12 @@ function render(){
 }
 
 /* ---------- logging ---------- */
-let LOG=[];const HDR='t_s,spm,hastighed_raw,watt,slag,distance,fase,modstand\n';
+let LOG=[];const HDR='t_s,spm,hastighed_raw,watt,slag,distance,fase,modstand,puls\n';
 let lastLog=0;
 function logRow(){
   if(!T.running)return;const el=T.elapsed();if(el-lastLog<1)return;lastLog=el;
   const w=wattNow();
-  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),w==null?'':Math.round(w),session.strokes,session.dist.toFixed(1),timerState().phase.split(' ')[0],S.level].join(','));
+  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),w==null?'':Math.round(w),session.strokes,session.dist.toFixed(1),timerState().phase.split(' ')[0],S.level,hrNow()||''].join(','));
   if(LOG.length>20000)LOG.shift();
   $('csv').value=HDR+LOG.join('\n');
 }
@@ -264,7 +272,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wn','wn',1);
-  bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');
+  bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');bind('hrmax','hrmax',1);
 }
 function buildLevels(){
   const c=$('lvl');c.innerHTML='';
@@ -307,6 +315,26 @@ $('bConn').onclick=()=>{
   connect();
 };
 
+async function connectHR(){
+  if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig');return}
+  if(HR.dev&&HR.dev.gatt&&HR.dev.gatt.connected){HR.dev.gatt.disconnect();return}
+  try{
+    HR.dev=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
+    HR.dev.addEventListener('gattserverdisconnected',()=>{$('bHR').textContent='♥ Puls';$('bHR').className='';HR.bpm=0});
+    const srv=await HR.dev.gatt.connect();
+    const ch=await (await srv.getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement');
+    ch.addEventListener('characteristicvaluechanged',e=>{
+      const dv=e.target.value,fl=dv.getUint8(0);
+      const b=(fl&1)?dv.getUint16(1,true):dv.getUint8(1);
+      if(b>0){HR.bpm=b;HR.t=performance.now()/1000;
+        if(T.running){HR.sum+=b;HR.n++;if(b>HR.max)HR.max=b}}
+    });
+    await ch.startNotifications();
+    $('bHR').textContent='♥ '+(HR.dev.name||'Puls');$('bHR').className='pri';
+  }catch(e){setStatus('Puls-fejl: '+((e&&e.name)?e.name+' ':'')+((e&&e.message)||String(e)))}
+}
+$('bHR').onclick=connectHR;
+
 /* demo signal: sawtooth, 30 spm, level-like speed */
 $('bDemo').onclick=()=>{
   if(demoT){clearInterval(demoT);demoT=null;$('bDemo').textContent='Demo';setStatus('Demo stoppet');return}
@@ -315,8 +343,8 @@ $('bDemo').onclick=()=>{
     const now=performance.now();t=(now-t0)/1000;
     const per=2.0,ph=(t%per)/per;
     const v=300+(ph<0.35?ph/0.35*40:40*(1-(ph-0.35)/0.65))-20;
-    const w=(t%12>10)?0:Math.round(v+(Math.random()-0.5)*6);
-    onSample(Math.random()<0.1?0:w,now/1000);
+    const w=(t%12>10)?0:Math.round(v+(Math.random()-0.5)*2);
+    onSample(Math.random()<0.1?0:w,now/1000);HR.bpm=Math.round(140+10*Math.sin(t/20));HR.t=now/1000;if(T.running){HR.sum+=HR.bpm/16;HR.n+=1/16;HR.max=Math.max(HR.max,HR.bpm)}
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
