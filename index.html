@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nordic BLE Logger</title>
+<style>
+/* Layout: one column, sticky status bar, live table first, log below. Dark-first workshop instrument look. */
+:root{
+  --bg:#0f1417; --panel:#182025; --line:#26323a; --fg:#e6eef2; --dim:#8da0ab;
+  --accent:#4cc9f0; --ok:#5ad19a; --warn:#f2b84b; --bad:#ef6b6b;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#f3f6f8; --panel:#ffffff; --line:#d3dde3; --fg:#13202a; --dim:#5b6e7a;
+  --accent:#0a74a3; --ok:#12805a; --warn:#9a6700; --bad:#c0392b; color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#f3f6f8; --panel:#ffffff; --line:#d3dde3; --fg:#13202a; --dim:#5b6e7a;
+  --accent:#0a74a3; --ok:#12805a; --warn:#9a6700; --bad:#c0392b; color-scheme:light}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;padding-inline:16px;padding-block:12px 40px}
+*{box-sizing:border-box}
+main{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:1.15rem;margin:0;font-weight:600;letter-spacing:.01em}
+h2{font-size:.78rem;margin:0 0 8px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:600}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;min-width:0}
+button,select,input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:9px 12px;min-height:40px}
+button{cursor:pointer}
+button.primary{background:var(--accent);color:#04202b;border-color:var(--accent);font-weight:600}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+.status{font-family:var(--mono);font-size:.85rem;color:var(--dim)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px}
+.dot.on{background:var(--ok)}
+.msg{font-size:.9rem;color:var(--warn);line-height:1.45}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:.82rem}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--dim);font-weight:500}
+td.hex{color:var(--accent)}
+.scroll{overflow-x:auto}
+.tags{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.tags label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--dim)}
+.tags input{width:92px}
+.tag-active{border-color:var(--warn);color:var(--warn)}
+textarea{width:100%;min-height:150px;font-family:var(--mono);font-size:.76rem;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{min-width:0}
+.hint{font-size:.82rem;color:var(--dim);line-height:1.5}
+</style>
+
+</head>
+<body>
+<main>
+  <div class="bar" style="justify-content:space-between">
+    <h1>Nordic BLE Logger</h1>
+    <span class="status"><span class="dot" id="dot"></span><span id="state">Ikke forbundet</span></span>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button class="primary" id="connect">Forbind til maskine</button>
+      <button id="disconnect" disabled>Afbryd</button>
+      <button id="readall" disabled>Læs alle (Read)</button>
+    </div>
+    <p class="msg" id="msg" style="margin:10px 0 0"></p>
+    <p class="hint" style="margin:8px 0 0">Luk Nordic Strong helt først. Maskinen tillader kun én forbindelse ad gangen. Vælg enheden "NSTR Nordic unset0".</p>
+  </div>
+
+  <div class="panel">
+    <h2>Markering under træning</h2>
+    <div class="tags">
+      <label>Slag/min på skærmen<input id="spm" inputmode="decimal" placeholder="fx 28"></label>
+      <label>Watt på skærmen<input id="watt" inputmode="decimal" placeholder="fx 120"></label>
+      <button data-tag="hvile">Hvile</button>
+      <button data-tag="rolig">Rolig</button>
+      <button data-tag="haard">Hårdt</button>
+      <button data-tag="">Ingen</button>
+    </div>
+    <p class="hint" style="margin:8px 0 0">Tryk på en markering, når du skifter intensitet, og indtast det, Nordic Strong eller skærmen viste. Værdierne gemmes i hver logrække, så vi kan matche bytes til tal.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Seneste værdi pr. karakteristik</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Kar.</th><th>Egensk.</th><th>Hex</th><th>u8</th><th>u16 LE</th><th>Antal</th></tr></thead>
+        <tbody id="live"><tr><td colspan="6" style="color:var(--dim)">Ingen forbindelse endnu.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Skriv kommando (valgfri)</h2>
+    <div class="row">
+      <select id="wchar"></select>
+      <input id="whex" placeholder="hex, fx 01 eller 0100" autocapitalize="off" autocomplete="off">
+      <button id="wsend" disabled>Send</button>
+    </div>
+    <p class="hint" style="margin:8px 0 0">Bruges kun, hvis maskinen ikke sender data af sig selv. Skriv kun værdier, du ved, hvad gør.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Log <span class="status" id="count">(0 rækker)</span></h2>
+    <div class="row" style="margin-bottom:8px">
+      <button id="copy" disabled>Kopiér CSV</button>
+      <button id="clear" disabled>Ryd</button>
+    </div>
+    <textarea id="csv" readonly placeholder="CSV vises her. Tryk på Kopiér CSV, og indsæt i chatten med Claude."></textarea>
+  </div>
+</main>
+
+<script>
+(function(){
+  var $ = function(id){return document.getElementById(id)};
+  var SVC_MAIN = '902958ce-5516-459d-91a3-40e0e73ac884';
+  var SVC_UART = '00060000-f8ce-11e4-abf4-0002a5d5c51b';
+  var dev=null, server=null, chars=[], rows=[], live={}, t0=0, tag='';
+  var HEAD='t_ms,tag,spm_display,watt_display,char,hex,u8,u16le';
+
+  function say(t){ $('msg').textContent=t||''; }
+  function setState(on,t){ $('dot').className='dot'+(on?' on':''); $('state').textContent=t; }
+  function short(u){ return u.slice(0,8).toUpperCase(); }
+  function hex(dv){ var a=[]; for(var i=0;i<dv.byteLength;i++) a.push(('0'+dv.getUint8(i).toString(16)).slice(-2)); return a.join(' '); }
+  function u8(dv){ var a=[]; for(var i=0;i<dv.byteLength;i++) a.push(dv.getUint8(i)); return a.join(' '); }
+  function u16(dv){ var a=[]; for(var i=0;i+1<dv.byteLength;i+=2) a.push(dv.getUint16(i,true)); return a.join(' '); }
+  function props(c){ var p=c.properties,r=[]; if(p.read)r.push('R'); if(p.write||p.writeWithoutResponse)r.push('W'); if(p.notify)r.push('N'); if(p.indicate)r.push('I'); return r.join(''); }
+
+  function renderLive(){
+    var keys=Object.keys(live);
+    if(!keys.length) return;
+    $('live').innerHTML = keys.map(function(k){
+      var l=live[k];
+      return '<tr><td>'+k+'</td><td>'+l.p+'</td><td class="hex">'+l.hex+'</td><td>'+l.u8+'</td><td>'+l.u16+'</td><td>'+l.n+'</td></tr>';
+    }).join('');
+  }
+  function renderCsv(){
+    $('csv').value = HEAD+'\n'+rows.join('\n');
+    $('count').textContent='('+rows.length+' rækker)';
+  }
+  var dirty=false;
+  setInterval(function(){ if(dirty){ renderLive(); renderCsv(); dirty=false; } },400);
+
+  function record(c,dv,kind){
+    var k=short(c.uuid), now=Math.round(performance.now()-t0);
+    var h=hex(dv), a=u8(dv), b=u16(dv);
+    var prev=live[k];
+    live[k]={p:props(c),hex:h,u8:a,u16:b,n:(prev?prev.n:0)+1};
+    rows.push([now,tag,$('spm').value,$('watt').value,k+(kind?':'+kind:''),h.replace(/ /g,''),a,b].map(function(x){return /[ ,]/.test(String(x))?'"'+x+'"':x}).join(','));
+    if(rows.length>20000) rows.shift();
+    dirty=true;
+  }
+
+  async function discover(){
+    chars=[];
+    var services=[];
+    for(var s of [SVC_MAIN,SVC_UART]){
+      try{ services.push(await server.getPrimaryService(s)); }catch(e){ say('Service '+short(s)+' ikke fundet: '+e.message); }
+    }
+    for(var svc of services){
+      var cs = await svc.getCharacteristics();
+      for(var c of cs){ chars.push(c); }
+    }
+    var sel=$('wchar'); sel.innerHTML='';
+    chars.forEach(function(c){
+      if(c.properties.write||c.properties.writeWithoutResponse){
+        var o=document.createElement('option'); o.value=c.uuid; o.textContent=short(c.uuid)+' ('+props(c)+')'; sel.appendChild(o);
+      }
+    });
+    for(var c of chars){
+      var k=short(c.uuid);
+      live[k]={p:props(c),hex:'',u8:'',u16:'',n:0};
+      if(c.properties.notify||c.properties.indicate){
+        try{
+          c.addEventListener('characteristicvaluechanged',function(ev){ record(ev.target,ev.target.value,'n'); });
+          await c.startNotifications();
+        }catch(e){ say('Notifikation fejlede på '+k+': '+e.message); }
+      }
+    }
+    renderLive();
+  }
+
+  async function readAll(){
+    for(var c of chars){
+      if(c.properties.read){
+        try{ var v=await c.readValue(); record(c,v,'r'); }catch(e){}
+      }
+    }
+  }
+
+  async function connect(){
+    say('');
+    if(!navigator.bluetooth){
+      say('Denne side kan ikke bruge Bluetooth her. Åbn den i browseren Bluefy (iPhone/iPad) eller i Chrome på Android/computer.');
+      return;
+    }
+    try{
+      dev = await navigator.bluetooth.requestDevice({
+        filters:[{namePrefix:'NSTR'}],
+        optionalServices:[SVC_MAIN,SVC_UART]
+      });
+    }catch(e){
+      if(e.name==='NotFoundError'||e.name==='AbortError'){ say('Ingen enhed valgt.'); return; }
+      say('Kunne ikke starte valg af enhed: '+e.message); return;
+    }
+    dev.addEventListener('gattserverdisconnected',function(){
+      setState(false,'Afbrudt'); $('disconnect').disabled=true; $('readall').disabled=true; $('wsend').disabled=true;
+    });
+    try{
+      setState(false,'Forbinder...');
+      server = await dev.gatt.connect();
+      t0=performance.now(); rows=[]; live={};
+      await discover();
+      setState(true,'Forbundet: '+(dev.name||'enhed'));
+      $('disconnect').disabled=false; $('readall').disabled=false; $('wsend').disabled=false;
+      $('copy').disabled=false; $('clear').disabled=false;
+      await readAll();
+      dirty=true;
+      say('Forbundet. Træk i grebene, og skift markering efter intensitet.');
+    }catch(e){
+      setState(false,'Fejl'); say('Forbindelse fejlede: '+e.message);
+    }
+  }
+
+  function parseHex(s){
+    s=s.replace(/0x/gi,'').replace(/[^0-9a-f]/gi,'');
+    if(!s||s.length%2) return null;
+    var out=new Uint8Array(s.length/2);
+    for(var i=0;i<out.length;i++) out[i]=parseInt(s.substr(i*2,2),16);
+    return out;
+  }
+
+  $('connect').onclick=connect;
+  $('disconnect').onclick=function(){ if(dev&&dev.gatt.connected) dev.gatt.disconnect(); };
+  $('readall').onclick=function(){ readAll(); };
+  $('clear').onclick=function(){ rows=[]; renderCsv(); };
+  $('copy').onclick=function(){
+    var t=$('csv').value;
+    var done=function(){ say('CSV kopieret ('+rows.length+' rækker).'); };
+    var fallback=function(){ $('csv').focus(); $('csv').select(); say('Markér og kopiér teksten manuelt (tryk og hold).'); };
+    try{ navigator.clipboard.writeText(t).then(done,fallback); }catch(e){ fallback(); }
+  };
+  $('wsend').onclick=async function(){
+    var data=parseHex($('whex').value);
+    if(!data){ say('Ugyldig hex. Brug fx 01 eller 0100.'); return; }
+    var c=chars.filter(function(x){return x.uuid===$('wchar').value})[0];
+    if(!c){ say('Vælg en skrivbar karakteristik.'); return; }
+    try{
+      if(c.properties.writeWithoutResponse) await c.writeValueWithoutResponse(data); else await c.writeValueWithResponse(data);
+      say('Sendt '+hex(new DataView(data.buffer))+' til '+short(c.uuid)+'.');
+    }catch(e){ say('Skrivning fejlede: '+e.message); }
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tag]'),function(b){
+    b.onclick=function(){
+      tag=b.getAttribute('data-tag');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-tag]'),function(x){x.classList.remove('tag-active')});
+      if(tag) b.classList.add('tag-active');
+      say(tag?('Markering: '+tag):'Markering fjernet.');
+    };
+  });
+
+  if(!navigator.bluetooth){
+    say('Bluetooth er ikke tilgængelig i denne browser. Åbn siden i Bluefy (iOS) eller Chrome (Android/computer).');
+  }
+})();
+</script>
+
+</body>
+</html>
