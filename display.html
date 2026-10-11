@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nordic Display</title>
+<style>
+:root{--bg:#0b0d10;--card:#151a20;--fg:#f2f5f7;--mut:#8a97a3;--acc:#35d07f;--warn:#ffb020;--bad:#ff5d5d;--line:#26303a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;-webkit-user-select:none;user-select:none}
+body{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#top{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
+#status{flex:1;font-size:14px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status.ok{color:var(--acc)}
+button{font:inherit;color:var(--fg);background:#1f2730;border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px}
+button.pri{background:var(--acc);color:#04120a;border-color:var(--acc);font-weight:700}
+button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-weight:700}
+#grid{flex:1;display:grid;gap:8px;padding:8px;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);min-height:0}
+@media (orientation:landscape){#grid{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:0;overflow:hidden;position:relative}
+.tile .lab{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.tile .val{font-weight:800;font-variant-numeric:tabular-nums;line-height:1;text-align:center;font-size:min(17vw,11vh);white-space:nowrap}
+@media (orientation:landscape){.tile .val{font-size:min(11vw,19vh)}}
+.tile .val.sm{font-size:min(13vw,8.5vh)}
+@media (orientation:landscape){.tile .val.sm{font-size:min(8.5vw,15vh)}}
+.tile .unit{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-align:right}
+.tile.work{border-color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
+.tile.rest{border-color:var(--warn);box-shadow:inset 0 0 0 2px var(--warn)}
+.tile.done{border-color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad)}
+#bar{display:flex;gap:8px;padding:8px 10px;border-top:1px solid var(--line);align-items:center}
+#bar .lvl{display:flex;gap:4px;flex:1;overflow-x:auto}
+#bar .lvl button{padding:8px 0;min-width:34px;flex:1}
+#bar .lvl button.on{background:var(--acc);color:#04120a;border-color:var(--acc);font-weight:700}
+#set{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:14px;display:none;z-index:5}
+#set.open{display:block}
+#set h2{margin:14px 0 6px;font-size:16px;color:var(--acc)}
+#set label{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:15px}
+#set label span{min-width:140px;color:var(--mut)}
+#set select,#set input[type=number],#set input[type=text]{background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px;font:inherit;flex:1;min-width:0}
+#set .kg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+#set .kg div{font-size:12px;color:var(--mut)}
+textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px solid var(--line);border-radius:8px;font:12px ui-monospace,monospace;-webkit-user-select:text;user-select:text}
+.note{font-size:13px;color:var(--mut);margin:4px 0}
+</style>
+</head>
+<body>
+<div id="top">
+  <button id="bConn" class="pri">Forbind</button>
+  <div id="status">Ikke forbundet</div>
+  <button id="bDemo">Demo</button>
+  <button id="bSet">⚙</button>
+</div>
+<div id="grid"></div>
+<div id="bar">
+  <button id="bStart" class="pri">Start</button>
+  <button id="bReset">Nulstil</button>
+  <div class="lvl" id="lvl"></div>
+</div>
+
+<div id="set">
+  <button id="bClose" class="pri">Luk indstillinger</button>
+  <h2>Felter (6 pladser)</h2>
+  <div id="fsel"></div>
+  <h2>Krop og maskine</h2>
+  <label><span>Kropsvægt (kg)</span><input type="number" id="kg" inputmode="decimal" min="30" max="200"></label>
+  <label><span>Skala (m/s pr. enhed)</span><input type="number" id="scale" step="0.0001"></label>
+  <label><span><input type="checkbox" id="cal" style="min-width:auto"> Skala kalibreret</span></label>
+  <p class="note">Signalet fra maskinen er en hastighedslignende værdi i ukendt enhed. Indtil skalaen er kalibreret, vises hastighed og distance med "ukal.".</p>
+  <label><span>Watt-eksponent n</span><input type="number" id="wn" step="0.1"></label>
+  <p class="note">Watt = k(modstand) × (skaleret hastighed)^n. Felter uden k viser "—". k pr. modstandsniveau 1–10:</p>
+  <div class="kg" id="kgrid"></div>
+  <h2>Timer</h2>
+  <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Nedtælling</option><option value="int">Interval</option></select></label>
+  <label><span>Nedtælling (min)</span><input type="number" id="tdown" min="0" step="0.5"></label>
+  <label><span>Arbejde (sek)</span><input type="number" id="twork" min="1"></label>
+  <label><span>Pause (sek)</span><input type="number" id="trest" min="0"></label>
+  <label><span>Runder</span><input type="number" id="trounds" min="1"></label>
+  <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
+  <h2>Log</h2>
+  <p class="note">Optages hvert sekund, mens timeren kører.</p>
+  <button id="bCopy">Kopiér CSV</button> <button id="bClr">Ryd log</button>
+  <textarea id="csv" readonly></textarea>
+</div>
+
+<script>
+(function(){
+'use strict';
+const SVC_MAIN='902958ce-5516-459d-91a3-40e0e73ac884', SVC_UART='00060000-f8ce-11e4-abf4-0002a5d5c51b';
+const $=id=>document.getElementById(id);
+
+/* ---------- settings ---------- */
+const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
+  tmode:'up',tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+let S=JSON.parse(JSON.stringify(DEF));
+try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
+function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
+
+/* ---------- signal processing ---------- */
+const PR=0.025;
+const P={s:0,m:0,disp:0,lastX:0,zeroRun:0,t0:null,tPrev:null,state:0,lo:1e9,hi:0,ht:0,
+  strokes:[],total:0,lastZeroT:0};
+let session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null};
+function onSample(raw,t){ // t in seconds
+  let x=raw;
+  if(x===0&&P.lastX>0&&P.zeroRun===0){P.zeroRun=1;x=P.lastX}      // isolated dropout
+  else if(x===0){P.zeroRun++}
+  else P.zeroRun=0;
+  if(raw!==0)P.lastX=raw; else if(P.zeroRun>1)P.lastX=0;
+  const dt=P.tPrev==null?0.06:Math.min(0.5,t-P.tPrev);P.tPrev=t;
+  if(P.t0==null){P.s=x;P.m=x;P.disp=x;P.t0=t}
+  P.s+=0.5*(x-P.s);
+  P.m+=Math.min(1,dt/2.0)*(x-P.m);
+  P.disp+=Math.min(1,dt/0.5)*(x-P.disp);
+  if(x===0&&P.zeroRun>16){P.state=0;P.lo=P.s;P.m*=0.9}
+  const prom=Math.max(PR*P.m,6);
+  if(P.state===0){
+    if(P.s<P.lo)P.lo=P.s;
+    if(P.s-P.lo>=prom){P.state=1;P.hi=P.s;P.ht=t}
+  }else{
+    if(P.s>P.hi){P.hi=P.s;P.ht=t}
+    if(P.hi-P.s>=prom){
+      const last=P.strokes.length?P.strokes[P.strokes.length-1]:-9;
+      if(P.m>25&&P.ht-last>=0.4){
+        P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
+        P.total++;
+        if(T.running){session.strokes++;if(session.firstStrokeT==null)session.firstStrokeT=T.elapsed()}
+      }
+      P.state=0;P.lo=P.s;
+    }
+  }
+  if(T.running){
+    session.dist+=P.disp*S.scale*dt;
+    if(P.disp>25){session.speedSum+=P.disp*dt;session.speedN+=dt}
+  }
+}
+function spm(now){
+  const a=P.strokes;if(a.length<2)return 0;
+  const iv=[];for(let i=Math.max(1,a.length-4);i<a.length;i++)iv.push(a[i]-a[i-1]);
+  iv.sort((p,q)=>p-q);const med=iv[Math.floor(iv.length/2)];
+  if(now-a[a.length-1]>Math.max(3,2.2*med))return 0;
+  return 60/med;
+}
+
+/* ---------- timer ---------- */
+const T={running:false,acc:0,start:0,finished:false,lastKey:'',
+  elapsed(){return (this.acc+(this.running?performance.now()-this.start:0))/1000}};
+function plan(){
+  if(S.tmode==='down')return{total:S.tdown*60,work:S.tdown*60,rest:0,rounds:1};
+  if(S.tmode==='int')return{total:(S.twork+S.trest)*S.trounds-S.trest,work:S.twork,rest:S.trest,rounds:S.trounds};
+  return null;
+}
+function timerState(){
+  const el=T.elapsed(),p=plan();
+  if(!p)return{main:el,phase:'FRI',cls:'',remTotal:null,label:'Tid'};
+  const rem=Math.max(0,p.total-el);
+  if(S.tmode==='down')return{main:rem,phase:T.finished?'FÆRDIG':'NEDTÆLLING',cls:T.finished?'done':'work',remTotal:rem,label:'Nedtælling'};
+  const cyc=p.work+p.rest,idx=Math.min(p.rounds-1,Math.floor(el/cyc)),w=el-idx*cyc;
+  if(T.finished)return{main:0,phase:'FÆRDIG',cls:'done',remTotal:0,label:'Interval'};
+  if(w<p.work)return{main:p.work-w,phase:'ARBEJD '+(idx+1)+'/'+p.rounds,cls:'work',remTotal:rem,label:'Interval'};
+  return{main:cyc-w,phase:'PAUSE '+(idx+1)+'/'+p.rounds,cls:'rest',remTotal:rem,label:'Interval'};
+}
+let actx=null;
+function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=0.25;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
+function tick(){
+  if(!T.running)return;
+  const p=plan(),el=T.elapsed();
+  if(p&&el>=p.total){T.finished=true;pause();beep(880,0.7);return}
+  const ts=timerState(),key=ts.phase.split(' ')[0]+(ts.phase.split(' ')[1]||'');
+  if(T.lastKey&&key!==T.lastKey)beep(key.startsWith('ARB')?1100:660,0.35);
+  if(ts.main<=3&&ts.main>2.9&&p)beep(500,0.1);
+  T.lastKey=key;
+}
+function startT(){
+  if(T.finished){resetT()}
+  T.running=true;T.start=performance.now();$('bStart').textContent='Pause';$('bStart').className='stop';
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}
+  wake();
+}
+function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri'}
+function resetT(){pause();T.acc=0;T.finished=false;T.lastKey='';session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+$('bStart').onclick=()=>T.running?pause():startT();
+$('bReset').onclick=()=>{resetT()};
+let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
+
+/* ---------- fields ---------- */
+const mmss=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),c=s%60;
+  return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(c).padStart(2,'0')};
+const U=()=>S.cal?'':' ukal.';
+function wattNow(){
+  const k=parseFloat(S.k[S.level-1]);if(!(k>0))return null;
+  const v=P.disp*S.scale;return v<=0.02?0:k*Math.pow(v,S.wn);
+}
+const FIELDS={
+  spm:{lab:'Slag/min',f:n=>{const v=spm(n);return[v?Math.round(v):'0','']}},
+  avgspm:{lab:'Gns slag/min',f:n=>{const e=T.elapsed(),f=session.firstStrokeT;
+    return[f!=null&&e-f>3?Math.round(session.strokes/((e-f)/60)):'—','']}},
+  strokes:{lab:'Antal slag',f:()=>[String(session.strokes),'']},
+  speed:{lab:'Hastighed'+'',f:()=>[(P.disp*S.scale).toFixed(2),'m/s'+U()]},
+  avgspeed:{lab:'Gns hastighed',f:()=>[session.speedN>0?(session.speedSum/session.speedN*S.scale).toFixed(2):'—','m/s'+U()]},
+  dist:{lab:'Distance',f:()=>[Math.round(session.dist),'m'+U()]},
+  pace:{lab:'Tid pr. 500 m',f:()=>{const v=P.disp*S.scale;return[v>0.2?mmss(500/v):'—','/500m'+U()]}},
+  watt:{lab:'Watt',f:()=>{const w=wattNow();return[w==null?'—':Math.round(w),w==null?'ukalibreret':'W']}},
+  wattkg:{lab:'Watt/kg',f:()=>{const w=wattNow();return[w==null||!(S.kg>0)?'—':(w/S.kg).toFixed(2),w==null?'ukalibreret':'W/kg']}},
+  elapsed:{lab:'Forløbet tid',f:()=>[mmss(T.elapsed()),'']},
+  timer:{lab:'Timer',f:()=>[mmss(timerState().main),timerState().phase],cls:()=>timerState().cls},
+  remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
+  phase:{lab:'Fase',f:()=>[timerState().phase,''],sm:true,cls:()=>timerState().cls},
+  clock:{lab:'Klokken',f:()=>{const d=new Date();return[String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),'']}}
+};
+const FKEYS=Object.keys(FIELDS);
+function buildGrid(){
+  const g=$('grid');g.innerHTML='';
+  S.fields.forEach((k,i)=>{
+    const d=document.createElement('div');d.className='tile';d.id='t'+i;
+    d.innerHTML='<div class="lab"></div><div class="val"></div><div class="unit"></div>';
+    g.appendChild(d);
+  });
+}
+function render(){
+  const now=P.tPrev==null?0:performance.now()/1000;
+  S.fields.forEach((k,i)=>{
+    const F=FIELDS[k],t=$('t'+i);if(!F||!t)return;
+    const[v,u]=F.f(now);
+    t.querySelector('.lab').textContent=F.lab;
+    const ve=t.querySelector('.val');ve.textContent=v;
+    ve.className='val'+((F.sm||String(v).length>=5)?' sm':'');
+    t.querySelector('.unit').textContent=u;
+    t.className='tile '+(F.cls?F.cls():'');
+  });
+}
+
+/* ---------- logging ---------- */
+let LOG=[];const HDR='t_s,spm,hastighed_raw,watt,slag,distance,fase,modstand\n';
+let lastLog=0;
+function logRow(){
+  if(!T.running)return;const el=T.elapsed();if(el-lastLog<1)return;lastLog=el;
+  const w=wattNow();
+  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),w==null?'':Math.round(w),session.strokes,session.dist.toFixed(1),timerState().phase.split(' ')[0],S.level].join(','));
+  if(LOG.length>20000)LOG.shift();
+  $('csv').value=HDR+LOG.join('\n');
+}
+
+/* ---------- settings UI ---------- */
+function buildSettings(){
+  const f=$('fsel');f.innerHTML='';
+  for(let i=0;i<6;i++){
+    const l=document.createElement('label');l.innerHTML='<span>Felt '+(i+1)+'</span>';
+    const s=document.createElement('select');
+    FKEYS.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=FIELDS[k].lab;if(S.fields[i]===k)o.selected=true;s.appendChild(o)});
+    s.onchange=()=>{S.fields[i]=s.value;save();buildGrid()};
+    l.appendChild(s);f.appendChild(l);
+  }
+  const kg=$('kgrid');kg.innerHTML='';
+  for(let i=0;i<10;i++){
+    const d=document.createElement('div');d.innerHTML='Niveau '+(i+1)+'<br>';
+    const inp=document.createElement('input');inp.type='number';inp.step='any';inp.value=S.k[i];inp.style.width='100%';
+    inp.style.cssText='width:100%;background:#1a2128;color:#f2f5f7;border:1px solid #26303a;border-radius:8px;padding:8px;font:inherit';
+    inp.oninput=()=>{S.k[i]=inp.value;save()};d.appendChild(inp);kg.appendChild(d);
+  }
+  const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
+    else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
+  bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wn','wn',1);
+  bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');
+}
+function buildLevels(){
+  const c=$('lvl');c.innerHTML='';
+  for(let i=1;i<=10;i++){const b=document.createElement('button');b.textContent=i;if(S.level===i)b.className='on';
+    b.onclick=()=>{S.level=i;save();buildLevels()};c.appendChild(b)}
+}
+$('bSet').onclick=()=>$('set').classList.add('open');
+$('bClose').onclick=()=>{$('set').classList.remove('open');resetNeeded()};
+function resetNeeded(){/* timer type may have changed */if(!T.running){T.finished=false}}
+$('bCopy').onclick=async()=>{const ta=$('csv');ta.select();try{await navigator.clipboard.writeText(ta.value)}catch(e){document.execCommand('copy')}};
+$('bClr').onclick=()=>{LOG=[];$('csv').value=''};
+
+/* ---------- Bluetooth ---------- */
+let dev=null,demoT=null;
+function setStatus(t,ok){const s=$('status');s.textContent=t;s.className=ok?'ok':''}
+async function connect(){
+  if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig – brug Bluefy');return}
+  try{
+    setStatus('Vælg enhed… (træk i grebene for at vække maskinen)');
+    dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SVC_MAIN,SVC_UART]});
+    dev.addEventListener('gattserverdisconnected',()=>{setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind'});
+    setStatus('Forbinder…');
+    const srv=await dev.gatt.connect();
+    const svc=await srv.getPrimaryService(SVC_MAIN);
+    const chars=await svc.getCharacteristics();
+    const ch=chars.find(c=>c.uuid.toLowerCase().startsWith('512387b1'));
+    if(!ch)throw new Error('Datakarakteristik 512387B1 ikke fundet');
+    ch.addEventListener('characteristicvaluechanged',e=>{
+      const dv=e.target.value;if(dv.byteLength<2)return;
+      onSample(dv.getUint16(0,true),performance.now()/1000);
+    });
+    await ch.startNotifications();
+    setStatus('Forbundet: '+(dev.name||'enhed'),true);$('bConn').textContent='Afbryd';
+  }catch(e){setStatus('Fejl: '+((e&&e.name)?e.name+' ':'')+((e&&e.message)||String(e)))}
+}
+$('bConn').onclick=()=>{
+  if(dev&&dev.gatt&&dev.gatt.connected){dev.gatt.disconnect();return}
+  connect();
+};
+
+/* demo signal: sawtooth, 30 spm, level-like speed */
+$('bDemo').onclick=()=>{
+  if(demoT){clearInterval(demoT);demoT=null;$('bDemo').textContent='Demo';setStatus('Demo stoppet');return}
+  let t=0;const t0=performance.now();
+  demoT=setInterval(()=>{
+    const now=performance.now();t=(now-t0)/1000;
+    const per=2.0,ph=(t%per)/per;
+    const v=300+(ph<0.35?ph/0.35*40:40*(1-(ph-0.35)/0.65))-20;
+    const w=(t%12>10)?0:Math.round(v+(Math.random()-0.5)*6);
+    onSample(Math.random()<0.1?0:w,now/1000);
+  },60);
+  $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
+};
+window.__test={onSample,P,T,S,session,startT,resetT,render,spm};
+
+/* ---------- init ---------- */
+buildGrid();buildSettings();buildLevels();
+setInterval(()=>{tick();logRow();render()},100);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&T.running)wake()});
+})();
+</script>
+</body>
+</html>
