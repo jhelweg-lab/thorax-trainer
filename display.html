@@ -19,10 +19,14 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
 @media (orientation:landscape){#grid{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:0;overflow:hidden;position:relative}
 .tile .lab{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
-.tile .val{font-weight:800;font-variant-numeric:tabular-nums;line-height:1;text-align:center;font-size:min(17vw,11vh);white-space:nowrap}
-@media (orientation:landscape){.tile .val{font-size:min(11vw,19vh)}}
-.tile .val.sm{font-size:min(13vw,8.5vh)}
-@media (orientation:landscape){.tile .val.sm{font-size:min(8.5vw,15vh)}}
+@font-face{font-family:"Barlow Condensed";font-weight:700;font-display:swap;src:url(barlow-condensed-700.woff2) format("woff2")}
+@font-face{font-family:"Roboto Condensed";font-weight:700;font-display:swap;src:url(roboto-condensed-700.woff2) format("woff2")}
+:root{--nf:-apple-system,system-ui,sans-serif;--nw:800;--nz:1}
+.tile .val{font-family:var(--nf);font-weight:var(--nw);font-variant-numeric:tabular-nums;line-height:1;text-align:center;font-size:calc(var(--nz)*min(17vw,11vh));white-space:nowrap}
+@media (orientation:landscape){.tile .val{font-size:calc(var(--nz)*min(11vw,19vh))}}
+.tile .val.sm{font-size:calc(var(--nz)*min(13vw,8.5vh))}
+@media (orientation:landscape){.tile .val.sm{font-size:calc(var(--nz)*min(8.5vw,15vh))}}
+#fprev{font-family:var(--nf);font-weight:var(--nw);font-size:44px;text-align:center;padding:6px;background:var(--card);border-radius:10px;font-variant-numeric:tabular-nums}
 .tile .unit{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-align:right}
 .tile.work{border-color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
 .tile.rest{border-color:var(--warn);box-shadow:inset 0 0 0 2px var(--warn)}
@@ -78,6 +82,18 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <label><span>Pause (sek)</span><input type="number" id="trest" min="0"></label>
   <label><span>Runder</span><input type="number" id="trounds" min="1"></label>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
+  <h2>Skrifttype for tal</h2>
+  <label><span>Skrift</span><select id="font">
+    <option value="sf">SF Pro (systemskrift)</option>
+    <option value="rounded">SF Pro Rounded</option>
+    <option value="dinc">DIN Condensed</option>
+    <option value="dina">DIN Alternate</option>
+    <option value="barlow">Barlow Condensed</option>
+    <option value="roboto">Roboto Condensed</option>
+  </select></label>
+  <label><span>Størrelse</span><input type="range" id="fz" min="0.7" max="1.4" step="0.05" style="flex:1"></label>
+  <div id="fprev">142 · 3:45 · 18:24</div>
+  <p class="note">Barlow og Roboto Condensed ligger som filer ved siden af siden på GitHub. SF og DIN ligger på iPad'en.</p>
   <h2>Bluetooth</h2>
   <label><span><input type="checkbox" id="allDev" style="min-width:auto"> Vis alle Bluetooth-enheder</span></label>
   <p class="note">Normalt vises kun Nordic-maskiner (navn der starter med "NSTR"). Slå til, hvis listen er tom.</p>
@@ -95,7 +111,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
-  tmode:'up',allDev:false,hrmax:185,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+  tmode:'up',allDev:false,hrmax:185,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
@@ -273,6 +289,8 @@ function buildSettings(){
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wn','wn',1);
   bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');bind('hrmax','hrmax',1);
+  const fs=$('font');fs.value=S.font;fs.onchange=()=>{S.font=fs.value;save();applyFont()};
+  const fz=$('fz');fz.value=S.fz;fz.oninput=()=>{S.fz=parseFloat(fz.value);save();applyFont()};
 }
 function buildLevels(){
   const c=$('lvl');c.innerHTML='';
@@ -351,6 +369,18 @@ $('bDemo').onclick=()=>{
 window.__test={onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
+const FONTS={
+  sf:{f:'-apple-system,system-ui,"Helvetica Neue",sans-serif',w:800,z:1},
+  rounded:{f:'ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif',w:800,z:1},
+  dinc:{f:'"DIN Condensed","Barlow Condensed","Roboto Condensed",sans-serif',w:700,z:1.35},
+  dina:{f:'"DIN Alternate","DIN Condensed",-apple-system,sans-serif',w:700,z:1.02},
+  barlow:{f:'"Barlow Condensed","DIN Condensed",sans-serif',w:700,z:1.35},
+  roboto:{f:'"Roboto Condensed","DIN Condensed",sans-serif',w:700,z:1.3}};
+function applyFont(){
+  const F=FONTS[S.font]||FONTS.sf,r=document.documentElement.style;
+  r.setProperty('--nf',F.f);r.setProperty('--nw',F.w);r.setProperty('--nz',(F.z*(S.fz||1)).toFixed(3));
+}
+applyFont();
 buildGrid();buildSettings();buildLevels();
 setInterval(()=>{tick();logRow();render()},100);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&T.running)wake()});
