@@ -17,7 +17,19 @@ button.pri{background:var(--acc);color:#04120a;border-color:var(--acc);font-weig
 button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-weight:700}
 #grid{flex:1;display:grid;gap:8px;padding:8px;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);min-height:0}
 @media (orientation:landscape){#grid{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}}
-.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:0;overflow:hidden;position:relative}
+#grid.n1{grid-template-columns:1fr;grid-template-rows:1fr}
+#grid.n2{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+#grid.n3{grid-template-columns:1fr;grid-template-rows:repeat(3,1fr)}
+#grid.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+#grid.n5{grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr)}
+#grid.n5 .tile:first-child{grid-column:1/3}
+@media (orientation:landscape){
+ #grid.n2{grid-template-columns:1fr 1fr;grid-template-rows:1fr}
+ #grid.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
+ #grid.n5{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
+ #grid.n5 .tile:first-child{grid-column:auto;grid-row:1/3}
+}
+.tile{container-type:size;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:0;overflow:hidden;position:relative}
 .tile .lab{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
 @font-face{font-family:"Barlow Condensed";font-weight:700;font-display:swap;src:url(barlow-condensed-700.woff2) format("woff2")}
 @font-face{font-family:"Roboto Condensed";font-weight:700;font-display:swap;src:url(roboto-condensed-700.woff2) format("woff2")}
@@ -26,6 +38,10 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
 @media (orientation:landscape){.tile .val{font-size:calc(var(--nz)*min(11vw,19vh))}}
 .tile .val.sm{font-size:calc(var(--nz)*min(13vw,8.5vh))}
 @media (orientation:landscape){.tile .val.sm{font-size:calc(var(--nz)*min(8.5vw,15vh))}}
+@supports (width:1cqw){
+ .tile .val{font-size:calc(var(--nz)*min(36cqw,52cqh))}
+ .tile .val.sm{font-size:calc(var(--nz)*min(25cqw,44cqh))}
+}
 #fprev{font-family:var(--nf);font-weight:var(--nw);font-size:44px;text-align:center;padding:6px;background:var(--card);border-radius:10px;font-variant-numeric:tabular-nums}
 .tile .unit{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-align:right}
 .tile.work{border-color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
@@ -64,7 +80,8 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 
 <div id="set">
   <button id="bClose" class="pri">Luk indstillinger</button>
-  <h2>Felter (6 pladser)</h2>
+  <h2>Felter</h2>
+  <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
   <h2>Krop og maskine</h2>
   <label><span>Kropsvægt (kg)</span><input type="number" id="kg" inputmode="decimal" min="30" max="200"></label>
@@ -111,7 +128,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
-  tmode:'up',allDev:false,hrmax:185,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+  tmode:'up',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
@@ -237,8 +254,8 @@ const FIELDS={
 };
 const FKEYS=Object.keys(FIELDS);
 function buildGrid(){
-  const g=$('grid');g.innerHTML='';
-  S.fields.forEach((k,i)=>{
+  const g=$('grid');g.innerHTML='';g.className='n'+S.nf;
+  S.fields.slice(0,S.nf).forEach((k,i)=>{
     const d=document.createElement('div');d.className='tile';d.id='t'+i;
     d.innerHTML='<div class="lab"></div><div class="val"></div><div class="unit"></div>';
     g.appendChild(d);
@@ -246,7 +263,7 @@ function buildGrid(){
 }
 function render(){
   const now=P.tPrev==null?0:performance.now()/1000;
-  S.fields.forEach((k,i)=>{
+  S.fields.slice(0,S.nf).forEach((k,i)=>{
     const F=FIELDS[k],t=$('t'+i);if(!F||!t)return;
     const[v,u]=F.f(now);
     t.querySelector('.lab').textContent=F.lab;
@@ -271,7 +288,8 @@ function logRow(){
 /* ---------- settings UI ---------- */
 function buildSettings(){
   const f=$('fsel');f.innerHTML='';
-  for(let i=0;i<6;i++){
+  const nfs=$('nf');nfs.value=String(S.nf);nfs.onchange=()=>{S.nf=parseInt(nfs.value);save();buildGrid();buildSettings()};
+  for(let i=0;i<S.nf;i++){
     const l=document.createElement('label');l.innerHTML='<span>Felt '+(i+1)+'</span>';
     const s=document.createElement('select');
     FKEYS.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=FIELDS[k].lab;if(S.fields[i]===k)o.selected=true;s.appendChild(o)});
