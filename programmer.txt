@@ -1,0 +1,74 @@
+// ThoraxTons programmer – én linje pr. trin:  varighed  øvelse  M(modstand)  F(frekvens)
+// Varighed: 2:00 / 0:30 / 45s / 5000m (distance) / -- (åbent trin, tryk › for næste)
+// Gentagelse: 3x [1:00 DS M5, 0:30 PAUSE]   eller over flere linjer:  3x [  …  ]
+// Forkortelser: DS dobbeltstagning · DSF DS m. fraspark · Dia diagonal · HB/VB højre/venstre ben
+//               1BH ét-bens hop · Sk skøjt · Forsk forskudt ben · H/V højre/venstre
+
+# Nov – 5000 m test
+2:00 DS M1-3
+1:00 Dia M1-3
+0:30 HB M1-3
+0:30 VB M1-3
+1:00 Skøjt M1-3
+1:00 1BH M1-3
+0:30 Dia-H M1-3
+0:30 Dia-V M1-3
+1:00 DSF M1-3
+0:30 Forsk V forrest M1-3
+0:30 Forsk H forrest M1-3
+1:00 DS M1-3
+1:00 DS stigende M
+0:30 PAUSE
+1:00 DS stigende M
+0:30 PAUSE
+1:00 DS M test+1
+0:30 PAUSE
+5000m TEST 5000 m – GO!
+
+# Jan – tirsdage
+2:00 DS M1
+1:00 Dia M1
+1:00 HB M1
+1:00 VB M1
+1:00 Walk M3
+1:00 1BH M3
+1:00 Dia-H M3
+1:00 Dia-V M3
+1:00 DS M3
+2:00 PAUSE
+3:00 DS M6-7 F42
+1:00 PAUSE
+3:00 DS M6-7 F46
+1:00 PAUSE
+3:00 DS M6-7 F50
+2:00 PAUSE
+// 4 x 2 min med 30 sek pause
+0:30 Front/væg: DS M4
+0:30 Front/væg: Dia M4
+0:15 Front/væg: DS-H M4
+0:15 Front/væg: DS-V M4
+0:30 Front/væg: DS-hop M4
+0:30 PAUSE
+0:30 Bag/sal: DS M4
+0:30 Bag/sal: Dia M4
+0:15 Bag/sal: DS-H M4
+0:15 Bag/sal: DS-V M4
+0:30 Bag/sal: 1BH M4
+0:30 PAUSE
+0:30 Bag/væg: DS M4
+0:30 Bag/væg: Dia M4
+0:15 Bag/væg: DS-H M4
+0:15 Bag/væg: DS-V M4
+0:30 Bag/væg: DS-hop M4
+0:30 PAUSE
+1:00 Broom H M10
+1:00 Broom V M10
+2:00 PAUSE
+// Hovedserie – pyramide 1-2-3-4-3-2-1
+1:00 DS M8
+2:00 Skøjt M7
+3:00 DSF/Dia/1BH M7
+4:00 DS/Dia/1BH/DS M6
+3:00 DSF/Dia/1BH M7
+2:00 Skøjt M7
+1:00 DS M8 (10)
