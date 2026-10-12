@@ -27,7 +27,6 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
  #grid.n2{grid-template-columns:1fr 1fr;grid-template-rows:1fr}
  #grid.n3{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr}
  #grid.n5{grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr}
- #grid.n5 .tile:first-child{grid-column:auto;grid-row:1/3}
 }
 .tile{container-type:size;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 10px;display:flex;flex-direction:column;justify-content:space-between;min-height:0;overflow:hidden;position:relative}
 .tile .lab{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
@@ -42,6 +41,13 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
  .tile .val{font-size:calc(var(--nz)*min(36cqw,52cqh))}
  .tile .val.sm{font-size:calc(var(--nz)*min(25cqw,44cqh))}
 }
+#grid.n5 .tile:first-child{grid-column:1/3}
+@media (orientation:landscape){#grid.n5 .tile:first-child{grid-column:1/3;grid-row:auto}}
+.tile.prog .val{white-space:normal;text-align:left;line-height:1.05;font-family:var(--nf);font-weight:var(--nw);overflow:hidden;display:flex;align-items:center;flex:1}
+.tile.prog .pb{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.tile.prog .nx{color:var(--mut);font-size:clamp(12px,7cqh,30px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile.prog .cd{font-family:var(--nf);font-weight:var(--nw);font-variant-numeric:tabular-nums;font-size:calc(var(--nz)*min(15cqw,24cqh));line-height:1}
+.tile.prog .skip{position:absolute;top:4px;right:6px;min-height:36px;padding:4px 12px;font-size:18px}
 #fprev{font-family:var(--nf);font-weight:var(--nw);font-size:44px;text-align:center;padding:6px;background:var(--card);border-radius:10px;font-variant-numeric:tabular-nums}
 .tile .unit{font-size:clamp(12px,2.2vmin,18px);color:var(--mut);text-align:right}
 .tile.work{border-color:var(--acc);box-shadow:inset 0 0 0 2px var(--acc)}
@@ -93,11 +99,17 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <div class="kg" id="kgrid"></div>
   <label><span>Maks. puls</span><input type="number" id="hrmax" min="100" max="230"></label>
   <h2>Timer</h2>
-  <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Nedtælling</option><option value="int">Interval</option></select></label>
+  <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Nedtælling</option><option value="int">Interval</option><option value="prog">Program</option></select></label>
   <label><span>Nedtælling (min)</span><input type="number" id="tdown" min="0" step="0.5"></label>
   <label><span>Arbejde (sek)</span><input type="number" id="twork" min="1"></label>
   <label><span>Pause (sek)</span><input type="number" id="trest" min="0"></label>
   <label><span>Runder</span><input type="number" id="trounds" min="1"></label>
+  <label><span>Program</span><select id="psel"></select></label>
+  <p class="note">Vælg "Program" som timertype og læg feltet "Program" som felt 1 (gerne 5 felter, så det bliver bredt). Tryk › i feltet for at springe til næste trin.</p>
+  <details><summary class="note">Eget program / rediger</summary>
+  <textarea id="pcustom" style="height:180px" placeholder="# Mit program&#10;2:00 DS M3&#10;3x [1:00 DS M7 F45, 0:30 PAUSE]"></textarea>
+  <button id="pSave">Gem eget program</button> <span class="note" id="pinfo"></span>
+  </details>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
   <h2>Skrifttype for tal</h2>
   <label><span>Skrift</span><select id="font">
@@ -128,7 +140,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
-  tmode:'up',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
@@ -179,6 +191,83 @@ function spm(now){
   return 60/med;
 }
 
+/* ---------- training programs ---------- */
+const PROG_DEFAULT="// ThoraxTons programmer \u2013 \u00e9n linje pr. trin:  varighed  \u00f8velse  M(modstand)  F(frekvens)\n// Varighed: 2:00 / 0:30 / 45s / 5000m (distance) / -- (\u00e5bent trin, tryk \u203a for n\u00e6ste)\n// Gentagelse: 3x [1:00 DS M5, 0:30 PAUSE]   eller over flere linjer:  3x [  \u2026  ]\n// Forkortelser: DS dobbeltstagning \u00b7 DSF DS m. fraspark \u00b7 Dia diagonal \u00b7 HB/VB h\u00f8jre/venstre ben\n//               1BH \u00e9t-bens hop \u00b7 Sk sk\u00f8jt \u00b7 Forsk forskudt ben \u00b7 H/V h\u00f8jre/venstre\n\n# Nov \u2013 5000 m test\n2:00 DS M1-3\n1:00 Dia M1-3\n0:30 HB M1-3\n0:30 VB M1-3\n1:00 Sk\u00f8jt M1-3\n1:00 1BH M1-3\n0:30 Dia-H M1-3\n0:30 Dia-V M1-3\n1:00 DSF M1-3\n0:30 Forsk V forrest M1-3\n0:30 Forsk H forrest M1-3\n1:00 DS M1-3\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS M test+1\n0:30 PAUSE\n5000m TEST 5000 m \u2013 GO!\n\n# Jan \u2013 tirsdage\n2:00 DS M1\n1:00 Dia M1\n1:00 HB M1\n1:00 VB M1\n1:00 Walk M3\n1:00 1BH M3\n1:00 Dia-H M3\n1:00 Dia-V M3\n1:00 DS M3\n2:00 PAUSE\n3:00 DS M6-7 F42\n1:00 PAUSE\n3:00 DS M6-7 F46\n1:00 PAUSE\n3:00 DS M6-7 F50\n2:00 PAUSE\n// 4 x 2 min med 30 sek pause\n0:30 Front/v\u00e6g: DS M4\n0:30 Front/v\u00e6g: Dia M4\n0:15 Front/v\u00e6g: DS-H M4\n0:15 Front/v\u00e6g: DS-V M4\n0:30 Front/v\u00e6g: DS-hop M4\n0:30 PAUSE\n0:30 Bag/sal: DS M4\n0:30 Bag/sal: Dia M4\n0:15 Bag/sal: DS-H M4\n0:15 Bag/sal: DS-V M4\n0:30 Bag/sal: 1BH M4\n0:30 PAUSE\n0:30 Bag/v\u00e6g: DS M4\n0:30 Bag/v\u00e6g: Dia M4\n0:15 Bag/v\u00e6g: DS-H M4\n0:15 Bag/v\u00e6g: DS-V M4\n0:30 Bag/v\u00e6g: DS-hop M4\n0:30 PAUSE\n1:00 Broom H M10\n1:00 Broom V M10\n2:00 PAUSE\n// Hovedserie \u2013 pyramide 1-2-3-4-3-2-1\n1:00 DS M8\n2:00 Sk\u00f8jt M7\n3:00 DSF/Dia/1BH M7\n4:00 DS/Dia/1BH/DS M6\n3:00 DSF/Dia/1BH M7\n2:00 Sk\u00f8jt M7\n1:00 DS M8 (10)\n";
+function parseDur(tok){
+  let m;
+  if(tok==='--')return{open:true};
+  if(m=tok.match(/^(\d+):(\d{1,2})$/))return{t:+m[1]*60+ +m[2]};
+  if(m=tok.match(/^(\d+(?:[.,]\d+)?)s$/i))return{t:parseFloat(m[1].replace(',','.'))};
+  if(m=tok.match(/^(\d+(?:[.,]\d+)?)min$/i))return{t:parseFloat(m[1].replace(',','.'))*60};
+  if(m=tok.match(/^(\d+)m$/i))return{d:+m[1]};
+  return null;
+}
+function parseStep(line){
+  line=line.trim();const sp=line.indexOf(' ');
+  const first=sp<0?line:line.slice(0,sp),rest=sp<0?'':line.slice(sp+1).trim();
+  const du=parseDur(first);if(!du)return null;
+  let txt=rest,M='',F=0,m;
+  if(m=txt.match(/(?:^|\s)M(\d+(?:-\d+)?(?:\s*\(\d+\))?)(?=\s|$)/)){M=m[1];txt=txt.replace(m[0],' ')}
+  if(m=txt.match(/(?:^|\s)F(\d{2,3})(?=\s|$)/)){F=+m[1];txt=txt.replace(m[0],' ')}
+  txt=txt.replace(/\s+/g,' ').trim()||'—';
+  return Object.assign({txt,M,F,pause:/^pause/i.test(txt)},du);
+}
+function parsePrograms(text){
+  const out=[];let cur=null,stack=[];
+  const add=st=>{if(!cur){cur={name:'Program',steps:[]};out.push(cur)}(stack.length?stack[stack.length-1].steps:cur.steps).push(st)};
+  for(let raw of text.split(/\r?\n/)){
+    let line=raw.replace(/\/\/.*$/,'').trim();if(!line)continue;
+    if(line[0]==='#'){cur={name:line.slice(1).trim()||'Program',steps:[]};out.push(cur);stack=[];continue}
+    let m;
+    if(m=line.match(/^(\d+)\s*x\s*\[(.*)\]$/i)){const n=+m[1],parts=m[2].split(',').map(parseStep).filter(Boolean);for(let i=0;i<n;i++)parts.forEach(p=>add(Object.assign({},p)));continue}
+    if(m=line.match(/^(\d+)\s*x\s*\[$/i)){stack.push({n:+m[1],steps:[]});continue}
+    if(line===']'&&stack.length){const b=stack.pop();for(let i=0;i<b.n;i++)b.steps.forEach(p=>add(Object.assign({},p)));continue}
+    const st=parseStep(line);if(st)add(st);
+  }
+  return out.filter(p=>p.steps.length);
+}
+let PROGS=[];
+function loadPrograms(){
+  let base=PROG_DEFAULT;try{const c=localStorage.getItem('nsd_progtxt');if(c)base=c}catch(e){}
+  PROGS=parsePrograms(base);
+  if(S.pcustom){const c=parsePrograms(S.pcustom);c.forEach(p=>p.name='★ '+p.name);PROGS=PROGS.concat(c)}
+  if(S.prog>=PROGS.length)S.prog=0;
+}
+loadPrograms();
+// try to fetch an updated programmer.txt from the site (works offline with last copy)
+try{fetch('programmer.txt',{cache:'no-cache'}).then(r=>r.ok?r.text():null).then(t=>{
+  if(t&&parsePrograms(t).length){try{localStorage.setItem('nsd_progtxt',t)}catch(e){}loadPrograms();buildProgSel()}}).catch(()=>{})}catch(e){}
+const PG={i:0,t0:0,d0:0,done:false};
+function curProg(){return PROGS[S.prog]||null}
+function progReset(){PG.i=0;PG.t0=0;PG.d0=0;PG.done=false;applyStepLevel()}
+function applyStepLevel(){const p=curProg();if(!p||S.tmode!=='prog')return;const st=p.steps[PG.i];if(st&&/^\d+$/.test(st.M)){S.level=+st.M;buildLevels()}}
+function progAdvance(manual){
+  const p=curProg();if(!p)return;
+  const st=p.steps[PG.i],el=T.elapsed();
+  PG.t0=(!manual&&st&&st.t!=null)?PG.t0+st.t:el;PG.d0=session.dist;PG.i++;
+  if(PG.i>=p.steps.length){PG.done=true;PG.i=p.steps.length-1;T.finished=true;pause();beep(880,0.7);return}
+  const nx=p.steps[PG.i];beep(nx.pause?660:1100,0.35);applyStepLevel();
+}
+function progTick(){
+  const p=curProg();if(!p||PG.done||!T.running)return;
+  const st=p.steps[PG.i],el=T.elapsed();
+  if(st.t!=null){const r=st.t-(el-PG.t0);if(r<=3&&r>2.9)beep(500,0.1);if(r<=0)progAdvance(false)}
+  else if(st.d!=null&&session.dist-PG.d0>=st.d)progAdvance(false);
+}
+function progState(){
+  const p=curProg();if(!p)return null;
+  const st=p.steps[PG.i],nx=p.steps[PG.i+1],el=T.elapsed();
+  let main,isTime=true,remTotal=0;
+  if(st.t!=null)main=Math.max(0,st.t-(el-PG.t0));
+  else if(st.d!=null){main=Math.max(0,st.d-(session.dist-PG.d0));isTime=false}
+  else{main=el-PG.t0;isTime=true}
+  remTotal=(st.t!=null?main:0);for(let j=PG.i+1;j<p.steps.length;j++)if(p.steps[j].t!=null)remTotal+=p.steps[j].t;
+  const lab=s=>s.txt+(s.M?' · M'+s.M:'')+(s.F?' · F'+s.F:'');
+  const durTxt=s=>s.t!=null?mmss(s.t):s.d!=null?s.d+' m':'åben';
+  return{st,nx,main,isTime,remTotal,text:PG.done?'FÆRDIG':lab(st),next:nx?('Næste: '+lab(nx)+' '+durTxt(nx)):'Sidste trin',
+    pos:(PG.i+1)+'/'+p.steps.length,name:p.name,cls:PG.done?'done':st.pause?'rest':'work'};
+}
+
 /* ---------- timer ---------- */
 const T={running:false,acc:0,start:0,finished:false,lastKey:'',
   elapsed(){return (this.acc+(this.running?performance.now()-this.start:0))/1000}};
@@ -188,6 +277,7 @@ function plan(){
   return null;
 }
 function timerState(){
+  if(S.tmode==='prog'){const g=progState();if(g)return{main:g.main,phase:g.text,cls:g.cls,remTotal:g.remTotal,label:'Program',isTime:g.isTime};}
   const el=T.elapsed(),p=plan();
   if(!p)return{main:el,phase:'FRI',cls:'',remTotal:null,label:'Tid'};
   const rem=Math.max(0,p.total-el);
@@ -202,6 +292,7 @@ function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||wi
   const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=0.25;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
 function tick(){
   if(!T.running)return;
+  if(S.tmode==='prog'){progTick();return}
   const p=plan(),el=T.elapsed();
   if(p&&el>=p.total){T.finished=true;pause();beep(880,0.7);return}
   const ts=timerState(),key=ts.phase.split(' ')[0]+(ts.phase.split(' ')[1]||'');
@@ -216,7 +307,7 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri'}
-function resetT(){pause();T.acc=0;T.finished=false;T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function resetT(){pause();T.acc=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>T.running?pause():startT();
 $('bReset').onclick=()=>{resetT()};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
@@ -232,7 +323,9 @@ function wattNow(){
 const HR={bpm:0,t:0,sum:0,n:0,max:0,dev:null};
 function hrNow(){return (HR.bpm&&performance.now()/1000-HR.t<5)?HR.bpm:0}
 const FIELDS={
-  spm:{lab:'Slag/min',f:n=>{const v=spm(n);return[v?Math.round(v):'0','']}},
+  spm:{lab:'Slag/min',f:n=>{const v=spm(n),g=S.tmode==='prog'?progState():null,F=g&&g.st&&g.st.F;return[v?Math.round(v):'0',F?'mål '+F:'']},
+    cls:()=>{const g=S.tmode==='prog'?progState():null,F=g&&g.st&&g.st.F;if(!F||!T.running)return'';const v=spm(performance.now()/1000);if(!v)return'';return Math.abs(v-F)<=2?'work':'done'}},
+  prog:{lab:'Program',prog:true,f:()=>['','']},
   avgspm:{lab:'Gns slag/min',f:n=>{const e=T.elapsed(),f=session.firstStrokeT;
     return[f!=null&&e-f>3?Math.round(session.strokes/((e-f)/60)):'—','']}},
   strokes:{lab:'Antal slag',f:()=>[String(session.strokes),'']},
@@ -243,7 +336,7 @@ const FIELDS={
   watt:{lab:'Watt',f:()=>{const w=wattNow();return[w==null?'—':Math.round(w),w==null?'ukalibreret':'W']}},
   wattkg:{lab:'Watt/kg',f:()=>{const w=wattNow();return[w==null||!(S.kg>0)?'—':(w/S.kg).toFixed(2),w==null?'ukalibreret':'W/kg']}},
   elapsed:{lab:'Forløbet tid',f:()=>[mmss(T.elapsed()),'']},
-  timer:{lab:'Timer',f:()=>[mmss(timerState().main),timerState().phase],cls:()=>timerState().cls},
+  timer:{lab:'Timer',f:()=>{const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?'m tilbage':ts.phase]},cls:()=>timerState().cls},
   remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
   phase:{lab:'Fase',f:()=>[timerState().phase,''],sm:true,cls:()=>timerState().cls},
   hr:{lab:'Puls',f:()=>{const b=hrNow();return[b?String(b):'—',b&&S.hrmax>0?Math.round(b/S.hrmax*100)+' % af maks':'bpm']},cls:()=>{const b=hrNow();if(!b||!(S.hrmax>0))return'';const z=b/S.hrmax;return z>=0.9?'done':z>=0.8?'rest':''}},
@@ -257,7 +350,9 @@ function buildGrid(){
   const g=$('grid');g.innerHTML='';g.className='n'+S.nf;
   S.fields.slice(0,S.nf).forEach((k,i)=>{
     const d=document.createElement('div');d.className='tile';d.id='t'+i;
-    d.innerHTML='<div class="lab"></div><div class="val"></div><div class="unit"></div>';
+    if(k==='prog'){d.innerHTML='<div class="lab"></div><button class="skip">›</button><div class="val"></div><div class="pb"><div class="nx"></div><div class="cd"></div></div>';
+      d.querySelector('.skip').onclick=()=>{if(S.tmode==='prog'&&!PG.done){if(!T.running&&T.elapsed()===0)return;progAdvance(true)}};}
+    else d.innerHTML='<div class="lab"></div><div class="val"></div><div class="unit"></div>';
     g.appendChild(d);
   });
 }
@@ -265,6 +360,7 @@ function render(){
   const now=P.tPrev==null?0:performance.now()/1000;
   S.fields.slice(0,S.nf).forEach((k,i)=>{
     const F=FIELDS[k],t=$('t'+i);if(!F||!t)return;
+    if(F.prog){renderProg(t);return}
     const[v,u]=F.f(now);
     t.querySelector('.lab').textContent=F.lab;
     const ve=t.querySelector('.val');ve.textContent=v;
@@ -274,13 +370,26 @@ function render(){
   });
 }
 
+function renderProg(t){
+  const g=S.tmode==='prog'?progState():null;
+  const lab=t.querySelector('.lab'),ve=t.querySelector('.val'),nx=t.querySelector('.nx'),cd=t.querySelector('.cd');
+  if(!g){lab.textContent='Program';ve.textContent='Vælg timertype "Program" under ⚙';ve.style.fontSize='min(7cqw,14cqh)';nx.textContent='';cd.textContent='';t.className='tile prog';return}
+  lab.textContent=g.name+' · trin '+g.pos;
+  if(ve.dataset.t!==g.text){ve.dataset.t=g.text;ve.textContent=g.text.replace(/-/g,'\u2011');const L=Math.max(6,g.text.length);
+    // fit text: approx 0.5em per char, up to 2 lines
+    const one=170/L, two=340/L;ve.style.fontSize='calc(var(--nz)*'+(L<=14?'min('+one.toFixed(1)+'cqw,34cqh)':'min('+two.toFixed(1)+'cqw,20cqh)')+')'}
+  nx.textContent=g.next;
+  cd.textContent=g.isTime?mmss(g.main):Math.round(g.main)+' m';
+  t.className='tile prog '+g.cls;
+}
+
 /* ---------- logging ---------- */
 let LOG=[];const HDR='t_s,spm,hastighed_raw,watt,slag,distance,fase,modstand,puls\n';
 let lastLog=0;
 function logRow(){
   if(!T.running)return;const el=T.elapsed();if(el-lastLog<1)return;lastLog=el;
   const w=wattNow();
-  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),w==null?'':Math.round(w),session.strokes,session.dist.toFixed(1),timerState().phase.split(' ')[0],S.level,hrNow()||''].join(','));
+  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),w==null?'':Math.round(w),session.strokes,session.dist.toFixed(1),(S.tmode==='prog'?('"'+timerState().phase.replace(/"/g,'')+'"'):timerState().phase.split(' ')[0]),S.level,hrNow()||''].join(','));
   if(LOG.length>20000)LOG.shift();
   $('csv').value=HDR+LOG.join('\n');
 }
@@ -306,9 +415,19 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wn','wn',1);
-  bind('tmode','tmode');bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');bind('hrmax','hrmax',1);
+  buildProgSel();
+  const pc=$('pcustom');pc.value=S.pcustom||'';
+  $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
+    $('pinfo').textContent=n.length?('Gemt: '+n.map(p=>p.name+' ('+p.steps.length+' trin)').join(', ')):'Ingen gyldige trin fundet'};
   const fs=$('font');fs.value=S.font;fs.onchange=()=>{S.font=fs.value;save();applyFont()};
   const fz=$('fz');fz.value=S.fz;fz.oninput=()=>{S.fz=parseFloat(fz.value);save();applyFont()};
+}
+function buildProgSel(){
+  const ps=$('psel');if(!ps)return;ps.innerHTML='';
+  PROGS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;
+    const tot=p.steps.reduce((a,s)=>a+(s.t||0),0);o.textContent=p.name+' ('+p.steps.length+' trin, '+mmss(tot)+(p.steps.some(s=>s.t==null)?' +':'')+')';ps.appendChild(o)});
+  ps.value=String(S.prog);ps.onchange=()=>{S.prog=+ps.value;save();progReset()};
 }
 function buildLevels(){
   const c=$('lvl');c.innerHTML='';
@@ -384,7 +503,7 @@ $('bDemo').onclick=()=>{
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
-window.__test={onSample,P,T,S,session,startT,resetT,render,spm};
+window.__test={PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
 const FONTS={
