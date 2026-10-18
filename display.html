@@ -116,6 +116,8 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <button id="pSave">Gem eget program</button> <span class="note" id="pinfo"></span>
   </details>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
+  <label><span>Lydstyrke</span><input type="range" id="vol" min="0.3" max="1.25" step="0.05" style="flex:1"></label>
+  <button id="vTest">Test lyd</button>
   <label><span><input type="checkbox" id="metro" style="min-width:auto"> Metronom ved F-mål i program</span></label>
   <p class="note">Appen kan køre som timer og metronom uden at være forbundet – fx mens Nordic Strong-appen er forbundet til maskinen.</p>
   <h2>Skrifttype for tal</h2>
@@ -147,7 +149,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.0008,wA:13,wB:[0,0.04,0.085,0.13,0.17,0.21,0.24,0.26,0.30,0.33],wv:2,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,level:5};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==2){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.wv=2}
@@ -264,8 +266,8 @@ function progAdvance(manual){
 }
 let metroNext=0;
 function click(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
-  const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=1500;g.gain.setValueAtTime(0.3,actx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.05);
-  o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.06)}catch(e){}}
+  const o=actx.createOscillator(),g=actx.createGain();o.type='square';o.frequency.value=2000;g.gain.setValueAtTime(Math.min(1,0.9*(S.vol||1)),actx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.06);
+  o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.07)}catch(e){}}
 setInterval(()=>{
   if(!S.metro||S.tmode!=='prog'||!T.running){metroNext=0;return}
   const g=progState();const F=g&&g.st&&!PG.done&&g.st.F;if(!F){metroNext=0;return}
@@ -275,7 +277,7 @@ setInterval(()=>{
 function progTick(){
   const p=curProg();if(!p||PG.done||!T.running)return;
   const st=p.steps[PG.i],el=T.elapsed();
-  if(st.t!=null){const r=st.t-(el-PG.t0);if(r<=3&&r>2.9)beep(500,0.1);if(r<=0)progAdvance(false)}
+  if(st.t!=null){const r=st.t-(el-PG.t0);cdBeep(r,PG.i);if(r<=0)progAdvance(false)}
   else if(st.d!=null&&session.dist-PG.d0>=st.d)progAdvance(false);
 }
 function progState(){
@@ -312,8 +314,10 @@ function timerState(){
   return{main:cyc-w,phase:'PAUSE '+(idx+1)+'/'+p.rounds,cls:'rest',remTotal:rem,label:'Interval'};
 }
 let actx=null;
+let cdLast='';
+function cdBeep(r,key){const sec=Math.ceil(r-0.05);if(sec>=1&&sec<=5){const k=key+':'+sec;if(k!==cdLast){cdLast=k;beep(sec===1?1000:800,0.12)}}}
 function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
-  const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=0.25;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
+  const o=actx.createOscillator(),g=actx.createGain();o.type='triangle';o.frequency.value=f;g.gain.value=Math.min(1,0.8*(S.vol||1));o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
 function tick(){
   if(!T.running)return;
   if(S.tmode==='prog'){progTick();return}
@@ -321,7 +325,7 @@ function tick(){
   if(p&&el>=p.total){T.finished=true;pause();beep(880,0.7);return}
   const ts=timerState(),key=ts.phase.split(' ')[0]+(ts.phase.split(' ')[1]||'');
   if(T.lastKey&&key!==T.lastKey)beep(key.startsWith('ARB')?1100:660,0.35);
-  if(ts.main<=3&&ts.main>2.9&&p)beep(500,0.1);
+  if(p)cdBeep(ts.main,key);
   T.lastKey=key;
 }
 function startT(){
@@ -443,7 +447,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('metro','metro');bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
