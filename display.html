@@ -94,9 +94,14 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <label><span>Skala (m/s pr. enhed)</span><input type="number" id="scale" step="0.0001"></label>
   <label><span><input type="checkbox" id="cal" style="min-width:auto"> Skala kalibreret</span></label>
   <p class="note">Signalet fra maskinen er en hastighedslignende værdi i ukendt enhed. Indtil skalaen er kalibreret, vises hastighed og distance med "ukal.".</p>
-  <label><span>Watt-eksponent n</span><input type="number" id="wn" step="0.1"></label>
-  <p class="note">Watt = k(modstand) × (skaleret hastighed)^n. Felter uden k viser "—". k pr. modstandsniveau 1–10:</p>
+  <p class="note">Watt beregnes fysisk pr. slag: K · ω · (dω/dt + a + b(modstand)·ω), foreløbigt kalibreret mod Nordic Strong-appen (okt. 2026, ±10–25 %). Vælg den modstand, du kører på, i bundlinjen.</p>
+  <details><summary class="note">Avanceret: watt-konstanter</summary>
+  <label><span>K (kalibrering)</span><input type="number" id="wK" step="0.00001"></label>
+  <label><span>a (lejefriktion)</span><input type="number" id="wA" step="0.5"></label>
+  <p class="note">b (magnetbremse) pr. modstand 1–10:</p>
   <div class="kg" id="kgrid"></div>
+  <button id="wReset">Gendan standardværdier</button>
+  </details>
   <label><span>Maks. puls</span><input type="number" id="hrmax" min="100" max="230"></label>
   <h2>Timer</h2>
   <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Nedtælling</option><option value="int">Interval</option><option value="prog">Program</option></select></label>
@@ -111,6 +116,8 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <button id="pSave">Gem eget program</button> <span class="note" id="pinfo"></span>
   </details>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
+  <label><span><input type="checkbox" id="metro" style="min-width:auto"> Metronom ved F-mål i program</span></label>
+  <p class="note">Appen kan køre som timer og metronom uden at være forbundet – fx mens Nordic Strong-appen er forbundet til maskinen.</p>
   <h2>Skrifttype for tal</h2>
   <label><span>Skrift</span><select id="font">
     <option value="sf">SF Pro (systemskrift)</option>
@@ -139,16 +146,18 @@ const SVC_MAIN='902958ce-5516-459d-91a3-40e0e73ac884', SVC_UART='00060000-f8ce-1
 const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
-const DEF={fields:['spm','timer','watt','speed','dist','clock'],kg:80,scale:0.01,cal:false,wn:3,k:Array(10).fill(''),
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,level:5};
+const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.0008,wA:13,wB:[0,0.04,0.085,0.13,0.17,0.21,0.24,0.26,0.30,0.33],wv:2,
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,level:5};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
+if(S.wv!==2){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.wv=2}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
 
 /* ---------- signal processing ---------- */
 const PR=0.025;
 const P={s:0,m:0,disp:0,lastX:0,zeroRun:0,t0:null,tPrev:null,state:0,lo:1e9,hi:0,ht:0,
   strokes:[],total:0,lastZeroT:0};
+const W={E:0,t0:0,s0:0,last:0,lastT:0,sumE:0,sumT:0};
 let session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null};
 function onSample(raw,t){ // t in seconds
   let x=raw;
@@ -162,6 +171,9 @@ function onSample(raw,t){ // t in seconds
   P.m+=Math.min(1,dt/2.0)*(x-P.m);
   P.disp+=Math.min(1,dt/0.5)*(x-P.disp);
   if(x===0&&P.zeroRun>16){P.state=0;P.lo=P.s;P.m*=0.9}
+  // --- power: K*w*(dw/dt + a + b*w), integrated per stroke cycle ---
+  const bL=+S.wB[S.level-1]||0,q=P.s>3?P.s*(S.wA+bL*P.s):0;
+  W.E+=q*dt;if(T.running){W.sumE+=q*dt;W.sumT+=dt}
   const prom=Math.max(PR*P.m,6);
   if(P.state===0){
     if(P.s<P.lo)P.lo=P.s;
@@ -173,6 +185,8 @@ function onSample(raw,t){ // t in seconds
       if(P.m>25&&P.ht-last>=0.4){
         P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
         P.total++;
+        {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const w=Math.max(0,S.wK*(W.E+(P.s*P.s-W.s0*W.s0)/2)/Tc);
+          W.last=W.last>0?0.5*W.last+0.5*w:w;W.lastT=t}W.t0=t;W.s0=P.s;W.E=0}
         if(T.running){session.strokes++;if(session.firstStrokeT==null)session.firstStrokeT=T.elapsed()}
       }
       P.state=0;P.lo=P.s;
@@ -248,6 +262,16 @@ function progAdvance(manual){
   if(PG.i>=p.steps.length){PG.done=true;PG.i=p.steps.length-1;T.finished=true;pause();beep(880,0.7);return}
   const nx=p.steps[PG.i];beep(nx.pause?660:1100,0.35);applyStepLevel();
 }
+let metroNext=0;
+function click(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=1500;g.gain.setValueAtTime(0.3,actx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.05);
+  o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.06)}catch(e){}}
+setInterval(()=>{
+  if(!S.metro||S.tmode!=='prog'||!T.running){metroNext=0;return}
+  const g=progState();const F=g&&g.st&&!PG.done&&g.st.F;if(!F){metroNext=0;return}
+  const now=performance.now();if(!metroNext)metroNext=now;
+  if(now>=metroNext){click();metroNext+=60000/F;if(metroNext<now)metroNext=now+60000/F}
+},10);
 function progTick(){
   const p=curProg();if(!p||PG.done||!T.running)return;
   const st=p.steps[PG.i],el=T.elapsed();
@@ -307,7 +331,7 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri'}
-function resetT(){pause();T.acc=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function resetT(){pause();T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>T.running?pause():startT();
 $('bReset').onclick=()=>{resetT()};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
@@ -317,9 +341,11 @@ const mmss=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.flo
   return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(c).padStart(2,'0')};
 const U=()=>S.cal?'':' ukal.';
 function wattNow(){
-  const k=parseFloat(S.k[S.level-1]);if(!(k>0))return null;
-  const v=P.disp*S.scale;return v<=0.02?0:k*Math.pow(v,S.wn);
+  const now=performance.now()/1000;
+  if(!W.last||now-W.lastT>Math.max(3.5,2.5*(60/Math.max(1,spm(now)||20))))return 0;
+  return W.last;
 }
+function wattAvg(){return W.sumT>3?S.wK*W.sumE/W.sumT:null}
 const HR={bpm:0,t:0,sum:0,n:0,max:0,dev:null};
 function hrNow(){return (HR.bpm&&performance.now()/1000-HR.t<5)?HR.bpm:0}
 const FIELDS={
@@ -333,8 +359,9 @@ const FIELDS={
   avgspeed:{lab:'Gns hastighed',f:()=>[session.speedN>0?(session.speedSum/session.speedN*S.scale).toFixed(2):'—','m/s'+U()]},
   dist:{lab:'Distance',f:()=>[Math.round(session.dist),'m'+U()]},
   pace:{lab:'Tid pr. 500 m',f:()=>{const v=P.disp*S.scale;return[v>0.2?mmss(500/v):'—','/500m'+U()]}},
-  watt:{lab:'Watt',f:()=>{const w=wattNow();return[w==null?'—':Math.round(w),w==null?'ukalibreret':'W']}},
-  wattkg:{lab:'Watt/kg',f:()=>{const w=wattNow();return[w==null||!(S.kg>0)?'—':(w/S.kg).toFixed(2),w==null?'ukalibreret':'W/kg']}},
+  watt:{lab:'Watt',f:()=>[String(Math.round(wattNow())),'W · M'+S.level]},
+  avgwatt:{lab:'Gns watt',f:()=>{const a=wattAvg();return[a==null?'—':String(Math.round(a)),'W']}},
+  wattkg:{lab:'Watt/kg',f:()=>[S.kg>0?(wattNow()/S.kg).toFixed(2):'—','W/kg']},
   elapsed:{lab:'Forløbet tid',f:()=>[mmss(T.elapsed()),'']},
   timer:{lab:'Timer',f:()=>{const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?'m tilbage':ts.phase]},cls:()=>timerState().cls},
   remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
@@ -389,7 +416,7 @@ let lastLog=0;
 function logRow(){
   if(!T.running)return;const el=T.elapsed();if(el-lastLog<1)return;lastLog=el;
   const w=wattNow();
-  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),w==null?'':Math.round(w),session.strokes,session.dist.toFixed(1),(S.tmode==='prog'?('"'+timerState().phase.replace(/"/g,'')+'"'):timerState().phase.split(' ')[0]),S.level,hrNow()||''].join(','));
+  LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),Math.round(w),session.strokes,session.dist.toFixed(1),(S.tmode==='prog'?('"'+timerState().phase.replace(/"/g,'')+'"'):timerState().phase.split(' ')[0]),S.level,hrNow()||''].join(','));
   if(LOG.length>20000)LOG.shift();
   $('csv').value=HDR+LOG.join('\n');
 }
@@ -407,15 +434,16 @@ function buildSettings(){
   }
   const kg=$('kgrid');kg.innerHTML='';
   for(let i=0;i<10;i++){
-    const d=document.createElement('div');d.innerHTML='Niveau '+(i+1)+'<br>';
-    const inp=document.createElement('input');inp.type='number';inp.step='any';inp.value=S.k[i];inp.style.width='100%';
+    const d=document.createElement('div');d.innerHTML='M'+(i+1)+'<br>';
+    const inp=document.createElement('input');inp.type='number';inp.step='any';inp.value=S.wB[i];
     inp.style.cssText='width:100%;background:#1a2128;color:#f2f5f7;border:1px solid #26303a;border-radius:8px;padding:8px;font:inherit';
-    inp.oninput=()=>{S.k[i]=inp.value;save()};d.appendChild(inp);kg.appendChild(d);
+    inp.oninput=()=>{const v=parseFloat(inp.value);if(!isNaN(v)){S.wB[i]=v;save()}};d.appendChild(inp);kg.appendChild(d);
   }
+  $('wReset').onclick=()=>{S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();save();buildSettings()};
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
-  bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wn','wn',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('kg','kg',1);bind('scale','scale',1);bind('cal','cal');bind('wK','wK',1);bind('wA','wA',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('metro','metro');bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -503,7 +531,7 @@ $('bDemo').onclick=()=>{
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
-window.__test={PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
+window.__test={W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
 const FONTS={
