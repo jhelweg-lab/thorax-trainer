@@ -376,6 +376,8 @@ const FIELDS={
   speed:{lab:'Hastighed',f:()=>[nsSpeed(wattNow()).toFixed(2),'m/s'+U()]},
   avgspeed:{lab:'Gns hastighed',f:()=>[session.speedN>0?(session.speedSum/session.speedN).toFixed(2):'—','m/s'+U()]},
   dist:{lab:'Distance',f:()=>[Math.round(session.dist),'m'+U()]},
+  pace1k:{lab:'Tid/1000 m (nu)',f:()=>{const v=nsSpeed(wattNow());return[v>0.2?mmss(1000/v):'—','/1000 m'+U()]}},
+  avgpace1k:{lab:'Gns tid/1000 m',f:()=>[session.dist>5&&session.speedN>0?mmss(session.speedN/session.dist*1000):'—','/1000 m'+U()]},
   pace:{lab:'Tid pr. 500 m',f:()=>{const v=nsSpeed(wattNow());return[v>0.2?mmss(500/v):'—','/500m'+U()]}},
   watt:{lab:'Watt',f:()=>[String(Math.round(wattNow())),(S.autoM&&DR.b!=null)?'W · målt M'+lvlTxt(DR.b):'W · M'+S.level]},
   drag:{lab:'Målt modstand',f:()=>[DR.b!=null?'M'+lvlTxt(DR.b):'—',DR.b!=null?'bremse '+DR.b.toFixed(3):'træk et par slag']},
