@@ -524,9 +524,9 @@ async function attach(d,label){
     onSample(dv.getUint16(0,true),performance.now()/1000);
   });
   await ch.startNotifications();
-  const shown=nm||dev.name||'enhed';
-  setStatus('Forbundet: '+shown,true);$('bConn').textContent='Afbryd';
-  toast('Forbundet til<br><b>'+shown+'</b><br><span style="font-size:.5em">Træk i grebene – hastigheden skal bevæge sig</span>');
+  const shown=nm||dev.name||'enhed';const idp=(dev.id||'').slice(0,4).toUpperCase();
+  setStatus('Forbundet: '+shown+' ('+idp+')',true);$('bConn').textContent='Afbryd';
+  toast('Forbundet til<br><b>'+shown+'</b><br><span style="font-size:.45em;color:#9aa">Bluetooth-kode '+idp+'…</span><br><span style="font-size:.5em">Træk i grebene – hastigheden skal bevæge sig</span>');
 }
 async function connect(){
   if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig – brug Bluefy');return}
@@ -541,12 +541,13 @@ async function connect(){
 // remembered machines (Bluefy: "Tillad baggrundsforbindelser" must be on)
 async function buildMachines(){
   const box=$('mlist');if(!box)return;box.innerHTML='';
-  if(!navigator.bluetooth||!navigator.bluetooth.getDevices){box.innerHTML='<p class="note">Denne browser kan ikke huske maskiner – brug Forbind.</p>';return}
+  const kn=S.known||{},ref=Object.keys(kn).sort((a,b)=>kn[a].localeCompare(kn[b],'da',{numeric:true})).map(id=>'<div style="font-size:18px;margin:4px 0"><b>'+kn[id]+'</b> = kode <b>'+id.slice(0,4).toUpperCase()+'</b>…</div>').join('');
+  if(!navigator.bluetooth||!navigator.bluetooth.getDevices){box.innerHTML=(ref?'<p class="note">Find koden i Bluetooth-listen under "Forbind":</p>'+ref:'<p class="note">Ingen maskiner kendt endnu – brug Forbind.</p>');return}
   let list=[];try{list=await navigator.bluetooth.getDevices()}catch(e){}
   const known=S.known||{};
   list=list.filter(d=>known[d.id]).sort((a,b)=>known[a.id].localeCompare(known[b.id],'da',{numeric:true}));
   if(!list.length){box.innerHTML='<p class="note">Ingen husket endnu. Forbind én gang til hver maskine med "Forbind" (med "Tillad baggrundsforbindelser" slået til), så dukker de op her med navn.</p>';return}
-  list.forEach(d=>{const b=document.createElement('button');b.textContent=known[d.id];b.style.margin='4px';
+  list.forEach(d=>{const b=document.createElement('button');b.innerHTML=known[d.id]+' <span style="color:#8a97a3;font-size:.8em">'+(d.id||'').slice(0,4).toUpperCase()+'</span>';b.style.margin='4px';
     b.onclick=async()=>{closeMachines();try{if(dev&&dev.gatt&&dev.gatt.connected)dev.gatt.disconnect();await attach(d,known[d.id])}
       catch(e){setStatus('Kunne ikke forbinde til '+known[d.id]+' – træk i grebene og prøv igen ('+((e&&e.message)||e)+')')}};
     box.appendChild(b)});
