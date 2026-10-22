@@ -67,17 +67,26 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
 #set .kg div{font-size:12px;color:var(--mut)}
 textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px solid var(--line);border-radius:8px;font:12px ui-monospace,monospace;-webkit-user-select:text;user-select:text}
 .note{font-size:13px;color:var(--mut);margin:4px 0}
+@media (max-width:560px){#top{flex-wrap:wrap;gap:6px}#status{order:9;flex-basis:100%}#top button{padding:8px 10px}}
+#bar .lvl button:first-child{min-width:54px;flex:0 0 auto;padding:8px 6px}
 </style>
 </head>
 <body>
 <div id="top">
   <button id="bConn" class="pri">Forbind</button>
+  <button id="bMach">Maskiner</button>
   <div id="status">Ikke forbundet</div>
   <button id="bHR">♥ Puls</button>
   <button id="bDemo">Demo</button>
   <button id="bSet">⚙</button>
 </div>
 <div id="grid"></div>
+<div id="mpanel" style="display:none;position:fixed;inset:10% 6%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;z-index:6;overflow:auto">
+  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:20px">Vælg maskine</b><button id="mClose">Luk</button></div>
+  <div id="mlist" style="margin-top:10px"></div>
+  <p class="note">Navnene læses fra maskinen (de navne, I har givet i Nordic Strong-appen). Ny maskine? Brug "Forbind" én gang.</p>
+</div>
+<div id="toast" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;text-align:center;font-size:clamp(28px,7vw,64px);background:rgba(0,0,0,.82);z-index:7;line-height:1.2" onclick="this.style.display='none'"></div>
 <div id="bar">
   <button id="bStart" class="pri">Start</button>
   <button id="bReset">Nulstil</button>
@@ -496,28 +505,56 @@ $('bClr').onclick=()=>{LOG=[];$('csv').value=''};
 /* ---------- Bluetooth ---------- */
 let dev=null,demoT=null;
 function setStatus(t,ok){const s=$('status');s.textContent=t;s.className=ok?'ok':''}
+function machineName(raw){return (raw||'').replace(/\0/g,'').replace(/_+/g,' ').trim()}
+async function attach(d,label){
+  dev=d;
+  dev.addEventListener('gattserverdisconnected',()=>{setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind'});
+  setStatus('Forbinder til '+(label||'maskine')+'…');
+  const srv=await dev.gatt.connect();
+  const svc=await srv.getPrimaryService(SVC_MAIN);
+  const chars=await svc.getCharacteristics();
+  // machine name as set by the gym in the Nordic Strong app (e.g. "Maraton 4___")
+  let nm='';const nc=chars.find(c=>c.uuid.toLowerCase().startsWith('12ef73c5'));
+  if(nc){try{nm=machineName(new TextDecoder().decode(await nc.readValue()))}catch(e){}}
+  if(nm){S.known=S.known||{};S.known[dev.id]=nm;save();buildMachines()}
+  const ch=chars.find(c=>c.uuid.toLowerCase().startsWith('512387b1'));
+  if(!ch)throw new Error('Datakarakteristik 512387B1 ikke fundet');
+  ch.addEventListener('characteristicvaluechanged',e=>{
+    const dv=e.target.value;if(dv.byteLength<2)return;
+    onSample(dv.getUint16(0,true),performance.now()/1000);
+  });
+  await ch.startNotifications();
+  const shown=nm||dev.name||'enhed';
+  setStatus('Forbundet: '+shown,true);$('bConn').textContent='Afbryd';
+  toast('Forbundet til<br><b>'+shown+'</b><br><span style="font-size:.5em">Træk i grebene – hastigheden skal bevæge sig</span>');
+}
 async function connect(){
   if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig – brug Bluefy');return}
   try{
     setStatus('Vælg enhed… (træk i grebene for at vække maskinen)');
     const opt=S.allDev?{acceptAllDevices:true,optionalServices:[SVC_MAIN,SVC_UART]}
-      :{filters:[{namePrefix:'NSTR'},{services:[SVC_MAIN]}],optionalServices:[SVC_MAIN,SVC_UART]};
-    dev=await navigator.bluetooth.requestDevice(opt);
-    dev.addEventListener('gattserverdisconnected',()=>{setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind'});
-    setStatus('Forbinder…');
-    const srv=await dev.gatt.connect();
-    const svc=await srv.getPrimaryService(SVC_MAIN);
-    const chars=await svc.getCharacteristics();
-    const ch=chars.find(c=>c.uuid.toLowerCase().startsWith('512387b1'));
-    if(!ch)throw new Error('Datakarakteristik 512387B1 ikke fundet');
-    ch.addEventListener('characteristicvaluechanged',e=>{
-      const dv=e.target.value;if(dv.byteLength<2)return;
-      onSample(dv.getUint16(0,true),performance.now()/1000);
-    });
-    await ch.startNotifications();
-    setStatus('Forbundet: '+(dev.name||'enhed'),true);$('bConn').textContent='Afbryd';
+      :{filters:[{namePrefix:'NSTR'},{namePrefix:'Thorex'},{services:[SVC_MAIN]}],optionalServices:[SVC_MAIN,SVC_UART]};
+    const d=await navigator.bluetooth.requestDevice(opt);
+    await attach(d,(S.known||{})[d.id]);
   }catch(e){setStatus('Fejl: '+((e&&e.name)?e.name+' ':'')+((e&&e.message)||String(e)))}
 }
+// remembered machines (Bluefy: "Tillad baggrundsforbindelser" must be on)
+async function buildMachines(){
+  const box=$('mlist');if(!box)return;box.innerHTML='';
+  if(!navigator.bluetooth||!navigator.bluetooth.getDevices){box.innerHTML='<p class="note">Denne browser kan ikke huske maskiner – brug Forbind.</p>';return}
+  let list=[];try{list=await navigator.bluetooth.getDevices()}catch(e){}
+  const known=S.known||{};
+  list=list.filter(d=>known[d.id]).sort((a,b)=>known[a.id].localeCompare(known[b.id],'da',{numeric:true}));
+  if(!list.length){box.innerHTML='<p class="note">Ingen husket endnu. Forbind én gang til hver maskine med "Forbind" (med "Tillad baggrundsforbindelser" slået til), så dukker de op her med navn.</p>';return}
+  list.forEach(d=>{const b=document.createElement('button');b.textContent=known[d.id];b.style.margin='4px';
+    b.onclick=async()=>{closeMachines();try{if(dev&&dev.gatt&&dev.gatt.connected)dev.gatt.disconnect();await attach(d,known[d.id])}
+      catch(e){setStatus('Kunne ikke forbinde til '+known[d.id]+' – træk i grebene og prøv igen ('+((e&&e.message)||e)+')')}};
+    box.appendChild(b)});
+}
+function openMachines(){buildMachines();$('mpanel').style.display='block'}
+function closeMachines(){$('mpanel').style.display='none'}
+function toast(html){const t=$('toast');t.innerHTML=html;t.style.display='flex';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
+$('bMach').onclick=openMachines;$('mClose').onclick=closeMachines;
 $('bConn').onclick=()=>{
   if(dev&&dev.gatt&&dev.gatt.connected){dev.gatt.disconnect();return}
   connect();
