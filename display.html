@@ -86,10 +86,18 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <div id="mlist" style="margin-top:10px"></div>
   <p class="note">Navnene læses fra maskinen (de navne, I har givet i Nordic Strong-appen). Ny maskine? Brug "Forbind" én gang.</p>
 </div>
+<div id="hpanel" style="display:none;position:fixed;inset:5% 4%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;z-index:6;overflow:auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:20px">Mine pas</b>
+    <span><button id="hAll">Eksportér oversigt</button> <button id="hClose">Luk</button></span></div>
+  <p class="note">Gemmes kun på denne enhed og i denne browser. Eksportér jævnligt, hvis du vil have en sikkerhedskopi.<br>Strava: tryk "Strava (TCX)", gem filen i Filer, og upload den på strava.com/upload/select. Vælg derefter sportstype (fx Nordic Ski) på Strava.</p>
+  <div id="hexpw" style="display:none"><p class="note">Kunne filen ikke deles direkte, kan du markere og kopiere teksten her:</p><textarea id="hexp" readonly></textarea></div>
+  <div id="hlist"></div>
+</div>
 <div id="toast" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;text-align:center;font-size:clamp(28px,7vw,64px);background:rgba(0,0,0,.82);z-index:7;line-height:1.2" onclick="this.style.display='none'"></div>
 <div id="bar">
   <button id="bStart" class="pri">Start</button>
   <button id="bReset">Nulstil</button>
+  <button id="bHist">Historik</button>
   <div class="lvl" id="lvl"></div>
 </div>
 
@@ -99,6 +107,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
   <h2>Krop og maskine</h2>
+  <label><span>Navn (på pas)</span><input type="text" id="user" placeholder="fx Jannik"></label>
   <label><span>Kropsvægt (kg)</span><input type="number" id="kg" inputmode="decimal" min="30" max="200"></label>
   <p class="note">Distance, hastighed og tid/500 m beregnes som i Nordic Strong-appen: v = 0,299 · watt<sup>0,61</sup> m/s, kun mens der trækkes (markeret "≈NS").</p>
   <p class="note">Watt beregnes fysisk pr. slag: K · ω · (dω/dt + a + b(modstand)·ω), kalibreret mod Nordic Strong-appen (to sessioner 19. okt. 2026, ±10 %). Vælg den modstand, du kører på, i bundlinjen.</p>
@@ -155,11 +164,11 @@ const SVC_MAIN='902958ce-5516-459d-91a3-40e0e73ac884', SVC_UART='00060000-f8ce-1
 const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
-const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.083,0.10,0.127,0.165,0.21,0.254,0.31,0.366],wv:4,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true};
+const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.085,0.11,0.135,0.18,0.237,0.27,0.328,0.375],wv:5,dC:0.299,dN:0.610,
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:''};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
-if(S.wv!==4){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=4}
+if(S.wv!==5){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=5}
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
 
 /* ---------- signal processing ---------- */
@@ -208,7 +217,7 @@ function onSample(raw,t){ // t in seconds
         P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
         P.total++;
         {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const w=Math.max(0,S.wK*(W.E+(P.s*P.s-W.s0*W.s0)/2)/Tc);
-          W.last=W.last>0?0.5*W.last+0.5*w:w;W.lastT=t}W.t0=t;W.s0=P.s;W.E=0}
+          W.last=W.last>0?0.5*W.last+0.5*w:w;W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}W.t0=t;W.s0=P.s;W.E=0}
         if(T.running){session.strokes++;if(session.firstStrokeT==null)session.firstStrokeT=T.elapsed()}
       }
       P.state=0;P.lo=P.s;
@@ -281,7 +290,7 @@ function progAdvance(manual){
   const p=curProg();if(!p)return;
   const st=p.steps[PG.i],el=T.elapsed();
   PG.t0=(!manual&&st&&st.t!=null)?PG.t0+st.t:el;PG.d0=session.dist;PG.i++;
-  if(PG.i>=p.steps.length){PG.done=true;PG.i=p.steps.length-1;T.finished=true;pause();beep(880,0.7);return}
+  if(PG.i>=p.steps.length){PG.done=true;PG.i=p.steps.length-1;T.finished=true;pause();beep(880,0.7);saveSession(true);return}
   const nx=p.steps[PG.i];beep(nx.pause?660:1100,0.35);applyStepLevel();
 }
 let metroNext=0;
@@ -342,7 +351,7 @@ function tick(){
   if(!T.running)return;
   if(S.tmode==='prog'){progTick();return}
   const p=plan(),el=T.elapsed();
-  if(p&&el>=p.total){T.finished=true;pause();beep(880,0.7);return}
+  if(p&&el>=p.total){T.finished=true;pause();beep(880,0.7);saveSession(true);return}
   const ts=timerState(),key=ts.phase.split(' ')[0]+(ts.phase.split(' ')[1]||'');
   if(T.lastKey&&key!==T.lastKey)beep(key.startsWith('ARB')?1100:660,0.35);
   if(p)cdBeep(ts.main,key);
@@ -356,9 +365,9 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri'}
-function resetT(){pause();T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function resetT(){pause();T.saved=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>T.running?pause():startT();
-$('bReset').onclick=()=>{resetT()};
+$('bReset').onclick=()=>{saveSession(false);resetT();LOG=[];lastLog=0;$('csv').value=''};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
 
 /* ---------- fields ---------- */
@@ -440,6 +449,67 @@ function renderProg(t){
   t.className='tile prog '+g.cls;
 }
 
+/* ---------- session history (saved on this device) ---------- */
+function histIndex(){try{return JSON.parse(localStorage.getItem('nsd_hist')||'[]')}catch(e){return[]}}
+function histSave(ix){try{localStorage.setItem('nsd_hist',JSON.stringify(ix));return true}catch(e){return false}}
+function sessionName(){if(S.tmode==='prog'){const p=curProg();return p?p.name:'Program'}return S.tmode==='int'?'Interval':S.tmode==='down'?'Nedtælling':'Fri træning'}
+function saveSession(auto){
+  if(T.saved)return;const el=T.elapsed();if(el<180||session.strokes<50)return;
+  const f=session.firstStrokeT,aw=wattAvg();
+  const sm={id:Date.now(),date:new Date().toISOString(),user:S.user||'',name:sessionName(),dur:Math.round(el),
+    active:Math.round(session.speedN),dist:Math.round(session.dist),strokes:session.strokes,
+    spm:(f!=null&&el-f>3)?Math.round(session.strokes/((el-f)/60)):null,avgW:aw==null?null:Math.round(aw),maxW:session.maxW?Math.round(session.maxW):null,
+    avgHR:HR.n?Math.round(HR.sum/HR.n):null,maxHR:HR.max||null,kg:S.kg||null};
+  const ix=histIndex();ix.unshift(sm);
+  try{localStorage.setItem('nsd_s_'+sm.id,HDR+LOG.join('\n'))}catch(e){/* full: keep summary only */
+    for(let i=ix.length-1;i>0;i--){try{localStorage.removeItem('nsd_s_'+ix[i].id)}catch(_){}
+      try{localStorage.setItem('nsd_s_'+sm.id,HDR+LOG.join('\n'));break}catch(_){}}}
+  if(!histSave(ix)){toast('Kunne ikke gemme passet – lageret er fuldt.<br><span style="font-size:.5em">Eksportér og slet gamle pas under Historik.</span>');return}
+  T.saved=true;toast('Pas gemt<br><span style="font-size:.5em">'+sm.name+' · '+mmss(sm.dur)+' · '+sm.dist+' m'+(sm.avgW!=null?' · '+sm.avgW+' W':'')+'</span>');
+}
+function fmtDate(iso){const d=new Date(iso);return d.toLocaleDateString('da-DK',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}
+function exportFile(name,text,type){type=type||'text/csv';
+  try{const file=new File([text],name,{type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:name}).catch(()=>{});return}}catch(e){}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}catch(e){}
+  $('hexp').value=text;$('hexpw').style.display='block';
+}
+function toTCX(x,csv){
+  const lines=csv.trim().split('\n'),h=lines.shift().split(','),ix=k=>h.indexOf(k);
+  const end=new Date(x.date).getTime(),start=end-x.dur*1000,iso=ms=>new Date(ms).toISOString().replace(/\.\d{3}Z$/,'Z');
+  const iT=ix('t_s'),iS=ix('spm'),iW=ix('watt'),iD=ix('distance'),iH=ix('puls');
+  const tp=lines.map(l=>{const c=l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);const t=parseFloat(c[iT]);if(isNaN(t))return'';
+    const sp=Math.min(254,Math.round(+c[iS]||0)),w=Math.round(+c[iW]||0),d=(+c[iD]||0).toFixed(1),hr=Math.round(+c[iH]||0);
+    return '<Trackpoint><Time>'+iso(start+t*1000)+'</Time><DistanceMeters>'+d+'</DistanceMeters>'+(hr>0?'<HeartRateBpm><Value>'+hr+'</Value></HeartRateBpm>':'')+
+      '<Cadence>'+sp+'</Cadence><Extensions><ns3:TPX><ns3:Watts>'+w+'</ns3:Watts></ns3:TPX></Extensions></Trackpoint>'}).join('\n');
+  const kcal=x.avgW?Math.round(x.avgW*x.dur/1000/4.184/0.24):0;
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">\n<Activities><Activity Sport="Other"><Id>'+iso(start)+'</Id>\n'+
+    '<Lap StartTime="'+iso(start)+'"><TotalTimeSeconds>'+x.dur+'</TotalTimeSeconds><DistanceMeters>'+x.dist+'</DistanceMeters><Calories>'+kcal+'</Calories>'+
+    (x.avgHR?'<AverageHeartRateBpm><Value>'+x.avgHR+'</Value></AverageHeartRateBpm><MaximumHeartRateBpm><Value>'+x.maxHR+'</Value></MaximumHeartRateBpm>':'')+
+    '<Intensity>Active</Intensity>'+(x.spm?'<Cadence>'+Math.min(254,x.spm)+'</Cadence>':'')+'<TriggerMethod>Manual</TriggerMethod><Track>\n'+tp+'\n</Track></Lap>'+
+    '<Notes>'+(x.name||'').replace(/[<&]/g,'')+' – Thorax Trainer'+'</Notes></Activity></Activities></TrainingCenterDatabase>';
+}
+function summaryCSV(ix){const h='dato,navn,pas,varighed_s,aktiv_s,distance_m,slag,gns_spm,gns_watt,max_watt,gns_puls,max_puls,kg';
+  return h+'\n'+ix.map(x=>[x.date,'"'+(x.user||'').replace(/"/g,'')+'"','"'+x.name.replace(/"/g,'')+'"',x.dur,x.active,x.dist,x.strokes,x.spm??'',x.avgW??'',x.maxW??'',x.avgHR??'',x.maxHR??'',x.kg??''].join(',')).join('\n')}
+function buildHist(){
+  const ix=histIndex(),box=$('hlist');box.innerHTML='';$('hexpw').style.display='none';
+  if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes automatisk, når et program/timer er færdig, eller når du trykker Nulstil efter mindst 3 minutters træning og 50 slag.</p>';return}
+  ix.forEach(x=>{const d=document.createElement('div');d.style.cssText='border-top:1px solid var(--line);padding:10px 0';
+    const has=(()=>{try{return localStorage.getItem('nsd_s_'+x.id)!=null}catch(e){return false}})();
+    d.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+fmtDate(x.date)+'</b><span style="color:var(--mut)">'+(x.user||'')+'</span></div>'+
+      '<div style="color:var(--mut);margin:2px 0 6px">'+x.name+'</div>'+
+      '<div style="font-size:17px">'+mmss(x.dur)+' · '+x.dist+' m · '+(x.spm??'—')+' slag/min · '+(x.avgW??'—')+' W (maks '+(x.maxW??'—')+')'+(x.avgHR?' · puls '+x.avgHR+'/'+x.maxHR:'')+(x.avgW&&x.kg?' · '+(x.avgW/x.kg).toFixed(2)+' W/kg':'')+'</div>';
+    const row=document.createElement('div');row.style.marginTop='6px';
+    if(has){const b=document.createElement('button');b.textContent='Eksportér CSV';b.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.csv',t)};row.appendChild(b);
+      const tb=document.createElement('button');tb.textContent='Strava (TCX)';tb.className='pri';tb.style.marginLeft='8px';
+      tb.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.tcx',toTCX(x,t),'application/vnd.garmin.tcx+xml')};row.appendChild(tb)}
+    const del=document.createElement('button');del.textContent='Slet';del.style.marginLeft='8px';
+    del.onclick=()=>{if(del.dataset.c){histSave(histIndex().filter(y=>y.id!==x.id));try{localStorage.removeItem('nsd_s_'+x.id)}catch(e){}buildHist()}else{del.dataset.c=1;del.textContent='Tryk igen for at slette'}};
+    row.appendChild(del);d.appendChild(row);box.appendChild(d)});
+}
+$('hClose').onclick=()=>$('hpanel').style.display='none';$('hAll').onclick=()=>exportFile('thorax_oversigt.csv',summaryCSV(histIndex()));
+$('bHist').onclick=()=>{buildHist();$('hpanel').style.display='block'};
+
 /* ---------- logging ---------- */
 let LOG=[];const HDR='t_s,spm,hastighed_raw,watt,slag,distance,fase,modstand,puls\n';
 let lastLog=0;
@@ -472,7 +542,7 @@ function buildSettings(){
   $('wReset').onclick=()=>{S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();save();buildSettings()};
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
-  bind('kg','kg',1);bind('wK','wK',1);bind('wA','wA',1);
+  bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
   bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
@@ -594,7 +664,7 @@ $('bDemo').onclick=()=>{
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
-window.__test={DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
+window.__test={toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
 const FONTS={
