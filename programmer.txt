@@ -73,45 +73,25 @@
 2:00 Skøjt M7
 1:00 DS M8 (10)
 
-# Kalibrering v1 (okt. 2026)
-// Kør præcis samme program i Nordic Strong-sessionen og i vores app.
-// Metronomen tikker i takt med F. Lad svinghjulet løbe frit ud i pauserne – brems det ikke.
-3:00 Opvarmning DS M3
-1:00 PAUSE – start optagelse
-1:30 DS M1 F35
-1:00 PAUSE
-1:30 DS M3 F35
-1:00 PAUSE
-1:30 DS M5 F35
-1:00 PAUSE
-1:30 DS M8 F35
-1:00 PAUSE
-1:30 DS M10 F35
-1:00 PAUSE
-1:30 DS M3 F50
-1:00 PAUSE
-1:30 DS M8 F50
-1:00 PAUSE – slut
-
-# Kalibrering v2
-// Som v1, men M1 er udeladt (bremser som M3) og M7/M9 er med, så alle modstande over 4 måles.
-// Kør præcis samme program i Nordic Strong (med skærmoptagelse) og i vores app, samme dag.
+# Kalibrering v3
+// Kør præcis samme program i Nordic Strong (med skærmoptagelse) og i vores app, samme dag og med samme oplevede indsats.
+// M3-serierne: moderat indsats (ikke all-out). M10-serierne: så hårdt du kan holde 1:30.
 // Lad svinghjulet løbe frit ud i pauserne – brems det ikke.
 3:00 Opvarmning DS M3
 1:00 PAUSE – start optagelse
-1:30 DS M3 F35
+1:30 DS M3 F35 moderat
 1:00 PAUSE
 1:30 DS M5 F35
 1:00 PAUSE
-1:30 DS M7 F35
+1:30 DS M6 F35
 1:00 PAUSE
-1:30 DS M9 F35
+1:30 DS M7 F35
 1:00 PAUSE
 1:30 DS M10 F35
 1:00 PAUSE
-1:30 DS M3 F50
+1:30 DS M3 F50 moderat
 1:00 PAUSE
 1:30 DS M7 F50
 1:00 PAUSE
-1:30 DS M10 F50
+1:30 DS M10 F50 hårdt
 1:00 PAUSE – slut
