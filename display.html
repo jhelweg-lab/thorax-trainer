@@ -456,7 +456,7 @@ function histIndex(){try{return JSON.parse(localStorage.getItem('nsd_hist')||'[]
 function histSave(ix){try{localStorage.setItem('nsd_hist',JSON.stringify(ix));return true}catch(e){return false}}
 function sessionName(){if(S.tmode==='prog'){const p=curProg();return p?p.name:'Program'}return S.tmode==='int'?'Interval':S.tmode==='down'?'Nedtælling':'Fri træning'}
 function saveSession(announce){
-  const el=T.elapsed();if(el<120||session.strokes<25||!T.sid)return false;
+  const el=T.elapsed();if(el<60||session.strokes<20||!T.sid)return false;
   const f=session.firstStrokeT,aw=wattAvg();
   const sm={id:T.sid,date:new Date(T.sid+el*1000).toISOString(),user:S.user||'',name:sessionName(),dur:Math.round(el),
     active:Math.round(session.speedN),dist:Math.round(session.dist),strokes:session.strokes,
@@ -501,7 +501,7 @@ function summaryCSV(ix){const h='dato,navn,pas,varighed_s,aktiv_s,distance_m,sla
   return h+'\n'+ix.map(x=>[x.date,'"'+(x.user||'').replace(/"/g,'')+'"','"'+x.name.replace(/"/g,'')+'"',x.dur,x.active,x.dist,x.strokes,x.spm??'',x.avgW??'',x.maxW??'',x.avgHR??'',x.maxHR??'',x.kg??''].join(',')).join('\n')}
 function buildHist(){
   const ix=histIndex(),box=$('hlist');box.innerHTML='';$('hexpw').style.display='none';
-  if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes løbende og automatisk, når det har varet mindst 2 minutter og 25 slag – også hvis du blot trykker Pause eller lukker appen.</p>';return}
+  if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes løbende og automatisk, når det har varet mindst 1 minut og haft 20 slag – også hvis du blot trykker Pause eller lukker appen.</p>';return}
   ix.forEach(x=>{const d=document.createElement('div');d.style.cssText='border-top:1px solid var(--line);padding:10px 0';
     const has=(()=>{try{return localStorage.getItem('nsd_s_'+x.id)!=null}catch(e){return false}})();
     d.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+fmtDate(x.date)+'</b><span style="color:var(--mut)">'+(x.user||'')+'</span></div>'+
