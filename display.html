@@ -131,6 +131,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <textarea id="pcustom" style="height:180px" placeholder="# Mit program&#10;2:00 DS M3&#10;3x [1:00 DS M7 F45, 0:30 PAUSE]"></textarea>
   <button id="pSave">Gem eget program</button> <span class="note" id="pinfo"></span>
   </details>
+  <label><span><input type="checkbox" id="autoStart" style="min-width:auto"> Start timeren automatisk, når du begynder at trække</span></label>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
   <label><span>Lydstyrke</span><input type="range" id="vol" min="0.3" max="1.25" step="0.05" style="flex:1"></label>
   <button id="vTest">Test lyd</button>
@@ -165,7 +166,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.085,0.11,0.135,0.18,0.237,0.27,0.328,0.375],wv:5,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:''};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==5){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=5}
@@ -215,6 +216,7 @@ function onSample(raw,t){ // t in seconds
       const last=P.strokes.length?P.strokes[P.strokes.length-1]:-9;
       if(P.m>25&&P.ht-last>=0.4){
         P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
+        if(!T.running&&!T.finished&&T.elapsed()===0&&S.autoStart&&P.total>=1)startT();
         P.total++;
         {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const w=Math.max(0,S.wK*(W.E+(P.s*P.s-W.s0*W.s0)/2)/Tc);
           W.last=W.last>0?0.5*W.last+0.5*w:w;W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}W.t0=t;W.s0=P.s;W.E=0}
@@ -360,14 +362,14 @@ function tick(){
 function startT(){
   if(T.elapsed()===0)applyStepLevel();
   if(T.finished){resetT()}
-  T.running=true;T.start=performance.now();$('bStart').textContent='Pause';$('bStart').className='stop';
+  if(!T.sid)T.sid=Date.now();T.running=true;T.start=performance.now();$('bStart').textContent='Pause';$('bStart').className='stop';
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}
   wake();
 }
-function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri'}
-function resetT(){pause();T.saved=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri';saveSession(false)}
+function resetT(){pause();T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>T.running?pause():startT();
-$('bReset').onclick=()=>{saveSession(false);resetT();LOG=[];lastLog=0;$('csv').value=''};
+$('bReset').onclick=()=>{saveSession(true);resetT();LOG=[];lastLog=0;$('csv').value=''};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
 
 /* ---------- fields ---------- */
@@ -453,20 +455,26 @@ function renderProg(t){
 function histIndex(){try{return JSON.parse(localStorage.getItem('nsd_hist')||'[]')}catch(e){return[]}}
 function histSave(ix){try{localStorage.setItem('nsd_hist',JSON.stringify(ix));return true}catch(e){return false}}
 function sessionName(){if(S.tmode==='prog'){const p=curProg();return p?p.name:'Program'}return S.tmode==='int'?'Interval':S.tmode==='down'?'Nedtælling':'Fri træning'}
-function saveSession(auto){
-  if(T.saved)return;const el=T.elapsed();if(el<180||session.strokes<50)return;
+function saveSession(announce){
+  const el=T.elapsed();if(el<120||session.strokes<25||!T.sid)return false;
   const f=session.firstStrokeT,aw=wattAvg();
-  const sm={id:Date.now(),date:new Date().toISOString(),user:S.user||'',name:sessionName(),dur:Math.round(el),
+  const sm={id:T.sid,date:new Date(T.sid+el*1000).toISOString(),user:S.user||'',name:sessionName(),dur:Math.round(el),
     active:Math.round(session.speedN),dist:Math.round(session.dist),strokes:session.strokes,
     spm:(f!=null&&el-f>3)?Math.round(session.strokes/((el-f)/60)):null,avgW:aw==null?null:Math.round(aw),maxW:session.maxW?Math.round(session.maxW):null,
     avgHR:HR.n?Math.round(HR.sum/HR.n):null,maxHR:HR.max||null,kg:S.kg||null};
-  const ix=histIndex();ix.unshift(sm);
-  try{localStorage.setItem('nsd_s_'+sm.id,HDR+LOG.join('\n'))}catch(e){/* full: keep summary only */
+  const ix=histIndex().filter(x=>x.id!==sm.id);ix.unshift(sm);ix.sort((a,b)=>b.id-a.id);
+  const body=HDR+LOG.join('\n');
+  try{localStorage.setItem('nsd_s_'+sm.id,body)}catch(e){/* full: drop oldest detailed logs, keep summaries */
     for(let i=ix.length-1;i>0;i--){try{localStorage.removeItem('nsd_s_'+ix[i].id)}catch(_){}
-      try{localStorage.setItem('nsd_s_'+sm.id,HDR+LOG.join('\n'));break}catch(_){}}}
-  if(!histSave(ix)){toast('Kunne ikke gemme passet – lageret er fuldt.<br><span style="font-size:.5em">Eksportér og slet gamle pas under Historik.</span>');return}
-  T.saved=true;toast('Pas gemt<br><span style="font-size:.5em">'+sm.name+' · '+mmss(sm.dur)+' · '+sm.dist+' m'+(sm.avgW!=null?' · '+sm.avgW+' W':'')+'</span>');
+      try{localStorage.setItem('nsd_s_'+sm.id,body);break}catch(_){}}}
+  if(!histSave(ix)){if(announce)toast('Kunne ikke gemme passet – lageret er fuldt.<br><span style="font-size:.5em">Eksportér og slet gamle pas under Historik.</span>');return false}
+  if(announce&&!T.announced){T.announced=true;toast('Pas gemt<br><span style="font-size:.5em">'+sm.name+' · '+mmss(sm.dur)+' · '+sm.dist+' m'+(sm.avgW!=null?' · '+sm.avgW+' W':'')+'</span>')}
+  return true;
 }
+// keep the running session saved continuously, so nothing is lost if the app is closed
+setInterval(()=>{if(T.running)saveSession(false)},30000);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveSession(false)});
+window.addEventListener('pagehide',()=>saveSession(false));
 function fmtDate(iso){const d=new Date(iso);return d.toLocaleDateString('da-DK',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}
 function exportFile(name,text,type){type=type||'text/csv';
   try{const file=new File([text],name,{type});
@@ -493,7 +501,7 @@ function summaryCSV(ix){const h='dato,navn,pas,varighed_s,aktiv_s,distance_m,sla
   return h+'\n'+ix.map(x=>[x.date,'"'+(x.user||'').replace(/"/g,'')+'"','"'+x.name.replace(/"/g,'')+'"',x.dur,x.active,x.dist,x.strokes,x.spm??'',x.avgW??'',x.maxW??'',x.avgHR??'',x.maxHR??'',x.kg??''].join(',')).join('\n')}
 function buildHist(){
   const ix=histIndex(),box=$('hlist');box.innerHTML='';$('hexpw').style.display='none';
-  if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes automatisk, når et program/timer er færdig, eller når du trykker Nulstil efter mindst 3 minutters træning og 50 slag.</p>';return}
+  if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes løbende og automatisk, når det har varet mindst 2 minutter og 25 slag – også hvis du blot trykker Pause eller lukker appen.</p>';return}
   ix.forEach(x=>{const d=document.createElement('div');d.style.cssText='border-top:1px solid var(--line);padding:10px 0';
     const has=(()=>{try{return localStorage.getItem('nsd_s_'+x.id)!=null}catch(e){return false}})();
     d.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+fmtDate(x.date)+'</b><span style="color:var(--mut)">'+(x.user||'')+'</span></div>'+
@@ -543,7 +551,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('autoStart','autoStart');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
