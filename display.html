@@ -149,6 +149,16 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <label><span>Størrelse</span><input type="range" id="fz" min="0.7" max="1.4" step="0.05" style="flex:1"></label>
   <div id="fprev">142 · 3:45 · 18:24</div>
   <p class="note">Barlow og Roboto Condensed ligger som filer ved siden af siden på GitHub. SF og DIN ligger på iPad'en.</p>
+  <h2>Strava</h2>
+  <div id="stStatus" class="note">Ikke forbundet til Strava.</div>
+  <button id="stConn" class="pri">Forbind til Strava</button> <button id="stOff">Afbryd Strava</button>
+  <label><span><input type="checkbox" id="stAuto" style="min-width:auto"> Upload automatisk, når et pas afsluttes</span></label>
+  <details><summary class="note">Opsætning (kun én gang)</summary>
+  <label><span>Worker-adresse</span><input type="text" id="stW" placeholder="https://thorax-strava.xxx.workers.dev"></label>
+  <label><span>Strava Client ID</span><input type="text" id="stId" inputmode="numeric" placeholder="fx 123456"></label>
+  <label><span>Strava-nøgle</span><input type="text" id="stKey" placeholder="indsæt kun hvis du fik en nøgle i Safari"></label>
+  <button id="stKeyBtn">Brug nøgle</button>
+  </details>
   <h2>Bluetooth</h2>
   <label><span><input type="checkbox" id="allDev" style="min-width:auto"> Vis alle Bluetooth-enheder</span></label>
   <p class="note">Normalt vises kun Nordic-maskiner (navn der starter med "NSTR"). Slå til, hvis listen er tom.</p>
@@ -166,7 +176,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.085,0.11,0.135,0.18,0.237,0.27,0.328,0.375],wv:5,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,stW:'',stId:'',stAuto:false,st:null};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==5){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=5}
@@ -468,6 +478,7 @@ function saveSession(announce){
     for(let i=ix.length-1;i>0;i--){try{localStorage.removeItem('nsd_s_'+ix[i].id)}catch(_){}
       try{localStorage.setItem('nsd_s_'+sm.id,body);break}catch(_){}}}
   if(!histSave(ix)){if(announce)toast('Kunne ikke gemme passet – lageret er fuldt.<br><span style="font-size:.5em">Eksportér og slet gamle pas under Historik.</span>');return false}
+  if(announce&&S.stAuto&&S.st&&S.st.refresh){const id=sm.id;setTimeout(()=>{const y=histIndex().find(z=>z.id===id);if(y&&!y.strava)stUpload(y,true)},300)}
   if(announce&&!T.announced){T.announced=true;toast('Pas gemt<br><span style="font-size:.5em">'+sm.name+' · '+mmss(sm.dur)+' · '+sm.dist+' m'+(sm.avgW!=null?' · '+sm.avgW+' W':'')+'</span>')}
   return true;
 }
@@ -510,7 +521,11 @@ function buildHist(){
     const row=document.createElement('div');row.style.marginTop='6px';
     if(has){const b=document.createElement('button');b.textContent='Eksportér CSV';b.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.csv',t)};row.appendChild(b);
       const tb=document.createElement('button');tb.textContent='Strava (TCX)';tb.className='pri';tb.style.marginLeft='8px';
-      tb.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.tcx',toTCX(x,t),'application/vnd.garmin.tcx+xml')};row.appendChild(tb)}
+      tb.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.tcx',toTCX(x,t),'application/vnd.garmin.tcx+xml')};
+      if(S.st&&S.st.refresh){tb.textContent=x.strava?'Upload igen':'Upload til Strava';tb.className=x.strava?'':'pri';tb.onclick=()=>stUpload(x,false);
+        if(x.strava&&x.strava!=='pending'){const a=document.createElement('a');a.href='https://www.strava.com/activities/'+x.strava;a.target='_blank';a.textContent='Se på Strava ✓';a.style.cssText='margin-left:10px;color:var(--acc)';row.appendChild(tb);row.appendChild(a)}else row.appendChild(tb);
+        const fb=document.createElement('button');fb.textContent='TCX-fil';fb.style.marginLeft='8px';fb.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.tcx',toTCX(x,t),'application/vnd.garmin.tcx+xml')};row.appendChild(fb)}
+      else row.appendChild(tb)}
     const del=document.createElement('button');del.textContent='Slet';del.style.marginLeft='8px';
     del.onclick=()=>{if(del.dataset.c){histSave(histIndex().filter(y=>y.id!==x.id));try{localStorage.removeItem('nsd_s_'+x.id)}catch(e){}buildHist()}else{del.dataset.c=1;del.textContent='Tryk igen for at slette'}};
     row.appendChild(del);d.appendChild(row);box.appendChild(d)});
@@ -551,7 +566,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('autoStart','autoStart');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -686,6 +701,58 @@ function applyFont(){
   const F=FONTS[S.font]||FONTS.sf,r=document.documentElement.style;
   r.setProperty('--nf',F.f);r.setProperty('--nw',F.w);r.setProperty('--nz',(F.z*(S.fz||1)).toFixed(3));
 }
+/* ---------- Strava (via own Cloudflare Worker) ---------- */
+const ST={busy:false};
+const ST_W='https://thorax-strava.jhelweg.workers.dev',ST_ID='291175';
+if(!S.stW)S.stW=ST_W;if(!S.stId)S.stId=ST_ID;
+function stBase(){return (S.stW||'').trim().replace(/\/+$/,'')}
+function stRedirect(){return location.origin+location.pathname}
+function stShow(){const e=$('stStatus');if(!e)return;
+  if(S.st&&S.st.refresh)e.innerHTML='Forbundet til Strava'+(S.st.name?' som <b>'+S.st.name+'</b>':'')+'.';
+  else e.textContent=(stBase()&&S.stId)?'Ikke forbundet til Strava.':'Strava er ikke sat op endnu (se Opsætning).'}
+async function stPost(path,body){const r=await fetch(stBase()+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error((d&&d.error)||('HTTP '+r.status));return d}
+function stStore(d){S.st={access:d.access_token,refresh:d.refresh_token,exp:d.expires_at,name:d.athlete?(d.athlete.firstname||''):(S.st&&S.st.name)||''};save();stShow()}
+async function stAccess(){if(!S.st||!S.st.refresh)throw new Error('Ikke forbundet til Strava');
+  if(!S.st.access||Date.now()/1000>(S.st.exp||0)-120){stStore(await stPost('/refresh',{refresh_token:S.st.refresh}))}return S.st.access}
+function stConnect(){
+  if(!stBase()||!S.stId){toast('Strava er ikke sat op<br><span style="font-size:.5em">Udfyld Worker-adresse og Client ID under ⚙ → Strava → Opsætning</span>');return}
+  const u='https://www.strava.com/oauth/authorize?client_id='+encodeURIComponent(S.stId)+'&redirect_uri='+encodeURIComponent(stRedirect())+
+    '&response_type=code&approval_prompt=auto&scope='+encodeURIComponent('read,activity:write')+'&state=thorax';
+  location.href=u;
+}
+async function stHandleCallback(){
+  const q=new URLSearchParams(location.search);if(q.get('state')!=='thorax')return;
+  history.replaceState(null,'',location.pathname);
+  if(q.get('error')){toast('Strava-forbindelse afbrudt');return}
+  const code=q.get('code');if(!code)return;
+  if(!(q.get('scope')||'').includes('activity:write')){toast('Strava: sæt flueben ved "upload aktiviteter" og prøv igen');return}
+  try{const d=await stPost('/token',{code});stStore(d);
+    if(!navigator.bluetooth){ // e.g. opened in Safari instead of Bluefy: hand over a key
+      toast('Forbundet til Strava<br><span style="font-size:.45em">Du er i en browser uden Bluetooth. Kopiér denne nøgle og indsæt den i Bluefy under ⚙ → Strava → Opsætning → Strava-nøgle:<br><b style="user-select:all;-webkit-user-select:all;word-break:break-all">'+d.refresh_token+'</b></span>');
+      clearTimeout(toast.h);
+    }else toast('Forbundet til Strava'+(d.athlete&&d.athlete.firstname?'<br><span style="font-size:.5em">som '+d.athlete.firstname+'</span>':''));
+  }catch(e){toast('Strava-fejl<br><span style="font-size:.5em">'+e.message+'</span>')}
+}
+async function stUpload(x,quiet){
+  if(ST.busy)return;const csv=(()=>{try{return localStorage.getItem('nsd_s_'+x.id)}catch(e){return null}})();
+  if(!csv){if(!quiet)toast('Passet har ingen detaljer at uploade');return}
+  ST.busy=true;if(!quiet)toast('Uploader til Strava…');
+  try{const at=await stAccess();
+    const d=await stPost('/upload',{access_token:at,tcx:toTCX(x,csv),name:(x.name||'Thorax Trainer')+' – Thorax Trainer',
+      description:'Thorax/Nordic Strong ski-maskine'+(x.avgW?' · gns '+x.avgW+' W':'')+(x.spm?' · '+x.spm+' slag/min':''),
+      external_id:'thorax-'+x.id,sport_type:'NordicSki'});
+    const ix=histIndex();const y=ix.find(z=>z.id===x.id);if(y){y.strava=d.activity_id||'pending';histSave(ix)}
+    toast('Uploadet til Strava ✓'+(d.activity_id?'':'<br><span style="font-size:.5em">Strava behandler stadig filen – den dukker op om lidt</span>'));
+    if($('hpanel').style.display==='block')buildHist();
+  }catch(e){toast('Strava-upload fejlede<br><span style="font-size:.5em">'+e.message+'</span>')}
+  ST.busy=false;
+}
+$('stConn').onclick=stConnect;
+$('stOff').onclick=()=>{S.st=null;save();stShow()};
+$('stKeyBtn').onclick=async()=>{const k=$('stKey').value.trim();if(!k)return;S.st={refresh:k,access:'',exp:0,name:''};save();
+  try{await stAccess();toast('Forbundet til Strava');$('stKey').value=''}catch(e){S.st=null;save();toast('Nøglen virkede ikke<br><span style="font-size:.5em">'+e.message+'</span>')}stShow()};
+stShow();stHandleCallback();
 applyFont();
 buildGrid();buildSettings();buildLevels();
 setInterval(()=>{tick();logRow();render()},100);
