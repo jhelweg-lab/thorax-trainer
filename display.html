@@ -93,10 +93,27 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <div id="hexpw" style="display:none"><p class="note">Kunne filen ikke deles direkte, kan du markere og kopiere teksten her:</p><textarea id="hexp" readonly></textarea></div>
   <div id="hlist"></div>
 </div>
+<div id="gpanel" style="display:none;position:fixed;inset:12% 6% auto 6%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;z-index:6">
+  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:22px">Sæt et mål</b><button id="gClose">Luk</button></div>
+  <div style="display:flex;gap:8px;margin:14px 0">
+    <button class="gt" data-m="up" style="flex:1">Fri træning</button><button class="gt" data-m="down" style="flex:1">Tid</button><button class="gt" data-m="dist" style="flex:1">Distance</button></div>
+  <div id="gTime" style="display:none;text-align:center">
+    <input id="gMin" type="number" inputmode="numeric" min="0" max="300" style="width:4.2em;font-size:44px;text-align:center;background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:10px"> <b style="font-size:44px">:</b>
+    <input id="gSec" type="number" inputmode="numeric" min="0" max="59" style="width:3.2em;font-size:44px;text-align:center;background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:10px">
+    <div class="note">Minutter : sekunder</div>
+    <div style="margin-top:8px"><button class="gq" data-t="600">10 min</button> <button class="gq" data-t="1200">20 min</button> <button class="gq" data-t="1800">30 min</button> <button class="gq" data-t="3600">60 min</button></div></div>
+  <div id="gDist" style="display:none;text-align:center">
+    <input id="gM" type="number" inputmode="numeric" min="50" step="50" style="width:5em;font-size:44px;text-align:center;background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:10px">
+    <div class="note">Meter</div>
+    <div style="margin-top:8px"><button class="gq" data-d="1000">1000</button> <button class="gq" data-d="2000">2000</button> <button class="gq" data-d="5000">5000</button> <button class="gq" data-d="10000">10000</button></div></div>
+  <div style="text-align:center;margin-top:16px"><button id="gSave" class="pri" style="min-width:9em;font-size:20px">Gem</button></div>
+  <p class="note">Tid tæller ned. Distance tæller meter tilbage (≈NS). Når målet er nået, bipper appen, stopper og gemmer passet.</p>
+</div>
 <div id="toast" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;text-align:center;font-size:clamp(28px,7vw,64px);background:rgba(0,0,0,.82);z-index:7;line-height:1.2" onclick="this.style.display='none'"></div>
 <div id="bar">
   <button id="bStart" class="pri">Start</button>
   <button id="bReset">Nulstil</button>
+  <button id="bGoal">Mål</button>
   <button id="bHist">Historik</button>
   <div class="lvl" id="lvl"></div>
 </div>
@@ -120,8 +137,9 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   </details>
   <label><span>Maks. puls</span><input type="number" id="hrmax" min="100" max="230"></label>
   <h2>Timer</h2>
-  <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Nedtælling</option><option value="int">Interval</option><option value="prog">Program</option></select></label>
-  <label><span>Nedtælling (min)</span><input type="number" id="tdown" min="0" step="0.5"></label>
+  <label><span>Type</span><select id="tmode"><option value="up">Optælling (fri)</option><option value="down">Tidsmål (nedtælling)</option><option value="dist">Distancemål</option><option value="int">Interval</option><option value="prog">Program</option></select></label>
+  <label><span>Tidsmål (min)</span><input type="number" id="tdown" min="0" step="0.5"></label>
+  <label><span>Distancemål (m)</span><input type="number" id="tdist" min="50" step="50" inputmode="numeric"></label>
   <label><span>Arbejde (sek)</span><input type="number" id="twork" min="1"></label>
   <label><span>Pause (sek)</span><input type="number" id="trest" min="0"></label>
   <label><span>Runder</span><input type="number" id="trounds" min="1"></label>
@@ -176,10 +194,11 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.085,0.11,0.135,0.18,0.237,0.27,0.328,0.375],wv:5,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,stW:'',stId:'',stAuto:false,st:null};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,stW:'',stId:'',stAuto:false,st:null};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==5){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=5}
+S.fields=(S.fields||[]).map(k=>k==='pace'?'speed':k);
 function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
 
 /* ---------- signal processing ---------- */
@@ -344,6 +363,8 @@ function plan(){
   return null;
 }
 function timerState(){
+  if(S.tmode==='dist'){const rem=Math.max(0,(S.tdist||0)-session.dist);
+    return{main:rem,phase:T.finished?'MÅL NÅET':'MÅL '+(S.tdist||0)+' m',cls:T.finished?'done':'work',remTotal:null,label:'Distancemål',isTime:false}}
   if(S.tmode==='prog'){const g=progState();if(g)return{main:g.main,phase:g.text,cls:g.cls,remTotal:g.remTotal,label:'Program',isTime:g.isTime};}
   const el=T.elapsed(),p=plan();
   if(!p)return{main:el,phase:'FRI',cls:'',remTotal:null,label:'Tid'};
@@ -362,6 +383,7 @@ function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||wi
 function tick(){
   if(!T.running)return;
   if(S.tmode==='prog'){progTick();return}
+  if(S.tmode==='dist'){if(!T.finished&&S.tdist>0&&session.dist>=S.tdist){T.finished=true;pause();beep(880,0.7);saveSession(true)}return}
   const p=plan(),el=T.elapsed();
   if(p&&el>=p.total){T.finished=true;pause();beep(880,0.7);saveSession(true);return}
   const ts=timerState(),key=ts.phase.split(' ')[0]+(ts.phase.split(' ')[1]||'');
@@ -403,18 +425,17 @@ const FIELDS={
   avgspm:{lab:'Gns slag/min',f:n=>{const e=T.elapsed(),f=session.firstStrokeT;
     return[f!=null&&e-f>3?Math.round(session.strokes/((e-f)/60)):'—','']}},
   strokes:{lab:'Antal slag',f:()=>[String(session.strokes),'']},
-  speed:{lab:'Hastighed',f:()=>[nsSpeed(wattNow()).toFixed(2),'m/s'+U()]},
-  avgspeed:{lab:'Gns hastighed',f:()=>[session.speedN>0?(session.speedSum/session.speedN).toFixed(2):'—','m/s'+U()]},
+  speed:{lab:'Hastighed',f:()=>[(nsSpeed(wattNow())*3.6).toFixed(1),'km/t'+U()]},
+  avgspeed:{lab:'Gns hastighed',f:()=>[session.speedN>0?(session.dist/session.speedN*3.6).toFixed(1):'—','km/t'+U()]},
   dist:{lab:'Distance',f:()=>[Math.round(session.dist),'m'+U()]},
   pace1k:{lab:'Tid/1000 m (nu)',f:()=>{const v=nsSpeed(wattNow());return[v>0.2?mmss(1000/v):'—','/1000 m'+U()]}},
   avgpace1k:{lab:'Gns tid/1000 m',f:()=>[session.dist>5&&session.speedN>0?mmss(session.speedN/session.dist*1000):'—','/1000 m'+U()]},
-  pace:{lab:'Tid pr. 500 m',f:()=>{const v=nsSpeed(wattNow());return[v>0.2?mmss(500/v):'—','/500m'+U()]}},
   watt:{lab:'Watt',f:()=>[String(Math.round(wattNow())),(S.autoM&&DR.b!=null)?'W · målt M'+lvlTxt(DR.b):'W · M'+S.level]},
   drag:{lab:'Målt modstand',f:()=>[DR.b!=null?'M'+lvlTxt(DR.b):'—',DR.b!=null?'bremse '+DR.b.toFixed(3):'træk et par slag']},
   avgwatt:{lab:'Gns watt',f:()=>{const a=wattAvg();return[a==null?'—':String(Math.round(a)),'W']}},
   wattkg:{lab:'Watt/kg',f:()=>[S.kg>0?(wattNow()/S.kg).toFixed(2):'—','W/kg']},
   elapsed:{lab:'Forløbet tid',f:()=>[mmss(T.elapsed()),'']},
-  timer:{lab:'Timer',f:()=>{const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?'m tilbage':ts.phase]},cls:()=>timerState().cls},
+  timer:{lab:'Timer',f:()=>{const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?(T.finished?'MÅL NÅET':'m tilbage'):ts.phase]},cls:()=>timerState().cls},
   remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
   phase:{lab:'Fase',f:()=>[timerState().phase,''],sm:true,cls:()=>timerState().cls},
   hr:{lab:'Puls',f:()=>{const b=hrNow();return[b?String(b):'—',b&&S.hrmax>0?Math.round(b/S.hrmax*100)+' % af maks':'bpm']},cls:()=>{const b=hrNow();if(!b||!(S.hrmax>0))return'';const z=b/S.hrmax;return z>=0.9?'done':z>=0.8?'rest':''}},
@@ -464,7 +485,7 @@ function renderProg(t){
 /* ---------- session history (saved on this device) ---------- */
 function histIndex(){try{return JSON.parse(localStorage.getItem('nsd_hist')||'[]')}catch(e){return[]}}
 function histSave(ix){try{localStorage.setItem('nsd_hist',JSON.stringify(ix));return true}catch(e){return false}}
-function sessionName(){if(S.tmode==='prog'){const p=curProg();return p?p.name:'Program'}return S.tmode==='int'?'Interval':S.tmode==='down'?'Nedtælling':'Fri træning'}
+function sessionName(){if(S.tmode==='prog'){const p=curProg();return p?p.name:'Program'}return S.tmode==='int'?'Interval':S.tmode==='down'?'Tidsmål '+mmss((S.tdown||0)*60):S.tmode==='dist'?'Distancemål '+(S.tdist||0)+' m':'Fri træning'}
 function saveSession(announce){
   const el=T.elapsed();if(el<60||session.strokes<20||!T.sid)return false;
   const f=session.firstStrokeT,aw=wattAvg();
@@ -508,8 +529,10 @@ function toTCX(x,csv){
     '<Intensity>Active</Intensity>'+(x.spm?'<Cadence>'+Math.min(254,x.spm)+'</Cadence>':'')+'<TriggerMethod>Manual</TriggerMethod><Track>\n'+tp+'\n</Track></Lap>'+
     '<Notes>'+(x.name||'').replace(/[<&]/g,'')+' – Thorax Trainer'+'</Notes></Activity></Activities></TrainingCenterDatabase>';
 }
-function summaryCSV(ix){const h='dato,navn,pas,varighed_s,aktiv_s,distance_m,slag,gns_spm,gns_watt,max_watt,gns_puls,max_puls,kg';
-  return h+'\n'+ix.map(x=>[x.date,'"'+(x.user||'').replace(/"/g,'')+'"','"'+x.name.replace(/"/g,'')+'"',x.dur,x.active,x.dist,x.strokes,x.spm??'',x.avgW??'',x.maxW??'',x.avgHR??'',x.maxHR??'',x.kg??''].join(',')).join('\n')}
+function sumExtra(x){const km=x.dist>0?x.dist/1000:0,act=x.active||x.dur;
+  return{pace:km>0?mmss(act/km):null,kmh:act>0?(x.dist/act*3.6).toFixed(1):null,kcal:x.avgW?Math.round(x.avgW*x.dur/1000/4.184/0.24):null}}
+function summaryCSV(ix){const h='dato,navn,pas,varighed_s,aktiv_s,distance_m,gns_tid_1000m,gns_kmt,slag,gns_spm,gns_watt,max_watt,gns_puls,max_puls,kcal,kg';
+  return h+'\n'+ix.map(x=>{const e=sumExtra(x);return[x.date,'"'+(x.user||'').replace(/"/g,'')+'"','"'+x.name.replace(/"/g,'')+'"',x.dur,x.active,x.dist,e.pace??'',e.kmh??'',x.strokes,x.spm??'',x.avgW??'',x.maxW??'',x.avgHR??'',x.maxHR??'',e.kcal??'',x.kg??''].join(',')}).join('\n')}
 function buildHist(){
   const ix=histIndex(),box=$('hlist');box.innerHTML='';$('hexpw').style.display='none';
   if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes løbende og automatisk, når det har varet mindst 1 minut og haft 20 slag – også hvis du blot trykker Pause eller lukker appen.</p>';return}
@@ -517,7 +540,11 @@ function buildHist(){
     const has=(()=>{try{return localStorage.getItem('nsd_s_'+x.id)!=null}catch(e){return false}})();
     d.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+fmtDate(x.date)+'</b><span style="color:var(--mut)">'+(x.user||'')+'</span></div>'+
       '<div style="color:var(--mut);margin:2px 0 6px">'+x.name+'</div>'+
-      '<div style="font-size:17px">'+mmss(x.dur)+' · '+x.dist+' m · '+(x.spm??'—')+' slag/min · '+(x.avgW??'—')+' W (maks '+(x.maxW??'—')+')'+(x.avgHR?' · puls '+x.avgHR+'/'+x.maxHR:'')+(x.avgW&&x.kg?' · '+(x.avgW/x.kg).toFixed(2)+' W/kg':'')+'</div>';
+      (()=>{const e=sumExtra(x),c=(l,v)=>'<div><div style="color:var(--mut);font-size:12px">'+l+'</div><div style="font-size:20px;font-weight:700">'+v+'</div></div>';
+        return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px 12px">'+
+        c('Tid',mmss(x.dur))+c('Distance',(x.dist/1000).toFixed(2)+' km')+c('Gns tid/1000 m',e.pace??'—')+c('Gns hastighed',(e.kmh??'—')+' km/t')+
+        c('Gns watt',(x.avgW??'—')+' W')+c('Maks watt',(x.maxW??'—')+' W')+(x.avgW&&x.kg?c('Watt/kg',(x.avgW/x.kg).toFixed(2)):'')+
+        c('Gns slag/min',x.spm??'—')+(x.avgHR?c('Puls gns/maks',x.avgHR+'/'+x.maxHR):'')+c('Kalorier',(e.kcal??'—')+' kcal')+'</div>'})();
     const row=document.createElement('div');row.style.marginTop='6px';
     if(has){const b=document.createElement('button');b.textContent='Eksportér CSV';b.onclick=()=>{const t=localStorage.getItem('nsd_s_'+x.id)||'';exportFile('thorax_'+x.date.slice(0,16).replace(/[:T]/g,'-')+'.csv',t)};row.appendChild(b);
       const tb=document.createElement('button');tb.textContent='Strava (TCX)';tb.className='pri';tb.style.marginLeft='8px';
@@ -531,6 +558,20 @@ function buildHist(){
     row.appendChild(del);d.appendChild(row);box.appendChild(d)});
 }
 $('hClose').onclick=()=>$('hpanel').style.display='none';$('hAll').onclick=()=>exportFile('thorax_oversigt.csv',summaryCSV(histIndex()));
+let gMode='up';
+function gShow(m){gMode=m;document.querySelectorAll('#gpanel .gt').forEach(b=>b.className='gt'+(b.dataset.m===m?' pri':''));
+  $('gTime').style.display=m==='down'?'block':'none';$('gDist').style.display=m==='dist'?'block':'none'}
+$('bGoal').onclick=()=>{const t=Math.round((S.tdown||0)*60);$('gMin').value=Math.floor(t/60);$('gSec').value=String(t%60).padStart(2,'0');$('gM').value=S.tdist||5000;
+  gShow(['down','dist'].includes(S.tmode)?S.tmode:'up');$('gpanel').style.display='block'};
+$('gClose').onclick=()=>$('gpanel').style.display='none';
+document.querySelectorAll('#gpanel .gt').forEach(b=>b.onclick=()=>gShow(b.dataset.m));
+document.querySelectorAll('#gpanel .gq').forEach(b=>b.onclick=()=>{if(b.dataset.t){const t=+b.dataset.t;$('gMin').value=Math.floor(t/60);$('gSec').value='00'}else $('gM').value=b.dataset.d});
+$('gSave').onclick=()=>{
+  if(gMode==='down'){const t=(parseInt($('gMin').value)||0)*60+(parseInt($('gSec').value)||0);if(t<10){toast('Sæt en tid');return}S.tdown=t/60}
+  if(gMode==='dist'){const m=parseInt($('gM').value)||0;if(m<50){toast('Sæt en distance');return}S.tdist=m}
+  S.tmode=gMode;save();if(!T.running){T.finished=false;progReset()}buildSettings();$('gpanel').style.display='none';
+  toast(gMode==='up'?'Fri træning':gMode==='down'?'Mål: '+mmss(S.tdown*60):'Mål: '+S.tdist+' m');
+};
 $('bHist').onclick=()=>{buildHist();$('hpanel').style.display='block'};
 
 /* ---------- logging ---------- */
@@ -566,7 +607,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -647,7 +688,7 @@ async function buildMachines(){
 }
 function openMachines(){buildMachines();$('mpanel').style.display='block'}
 function closeMachines(){$('mpanel').style.display='none'}
-function toast(html){const t=$('toast');t.innerHTML=html;t.style.display='flex';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
+function toast(html){const t=$('toast');t.innerHTML='<div>'+html+'</div>';t.style.display='flex';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
 $('bMach').onclick=openMachines;$('mClose').onclick=closeMachines;
 $('bConn').onclick=()=>{
   if(dev&&dev.gatt&&dev.gatt.connected){dev.gatt.disconnect();return}
