@@ -69,6 +69,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 .note{font-size:13px;color:var(--mut);margin:4px 0}
 @media (max-width:560px){#top{flex-wrap:wrap;gap:6px}#status{order:9;flex-basis:100%}#top button{padding:8px 10px}}
 #bar .lvl button:first-child{min-width:54px;flex:0 0 auto;padding:8px 6px}
+#bar>button{flex:1}
 </style>
 </head>
 <body>
@@ -149,6 +150,8 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <textarea id="pcustom" style="height:180px" placeholder="# Mit program&#10;2:00 DS M3&#10;3x [1:00 DS M7 F45, 0:30 PAUSE]"></textarea>
   <button id="pSave">Gem eget program</button> <span class="note" id="pinfo"></span>
   </details>
+  <label><span><input type="checkbox" id="showLvl" style="min-width:auto"> Vis modstandsknapper i bundlinjen (Auto/1–10)</span></label>
+  <p class="note">Ikke nødvendigt: appen måler selv modstanden og bruger den til watt. Slå kun til, hvis du vil styre den manuelt.</p>
   <label><span><input type="checkbox" id="autoStart" style="min-width:auto"> Start timeren automatisk, når du begynder at trække</span></label>
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
   <label><span>Lydstyrke</span><input type="range" id="vol" min="0.3" max="1.25" step="0.05" style="flex:1"></label>
@@ -194,7 +197,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.085,0.11,0.135,0.18,0.237,0.27,0.328,0.375],wv:5,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,stW:'',stId:'',stAuto:false,st:null};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,showLvl:false,stW:'',stId:'',stAuto:false,st:null};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==5){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=5}
@@ -607,7 +610,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -622,7 +625,7 @@ function buildProgSel(){
   ps.value=String(S.prog);ps.onchange=()=>{S.prog=+ps.value;save();progReset()};
 }
 function buildLevels(){
-  const c=$('lvl');c.innerHTML='';
+  const c=$('lvl');c.innerHTML='';c.style.display=S.showLvl?'flex':'none';if(!S.showLvl){S.autoM=true;return}
   const a=document.createElement('button');a.textContent='Auto';if(S.autoM)a.className='on';
   a.onclick=()=>{S.autoM=!S.autoM;save();buildLevels()};c.appendChild(a);
   for(let i=1;i<=10;i++){const b=document.createElement('button');b.textContent=i;if(!S.autoM&&S.level===i)b.className='on';
