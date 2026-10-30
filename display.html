@@ -424,7 +424,7 @@ function hrNow(){return (HR.bpm&&performance.now()/1000-HR.t<5)?HR.bpm:0}
 const FIELDS={
   spm:{lab:'Slag/min',f:n=>{const v=spm(n),g=S.tmode==='prog'?progState():null,F=g&&g.st&&g.st.F;return[v?Math.round(v):'0',F?'mål '+F:'']},
     cls:()=>{const g=S.tmode==='prog'?progState():null,F=g&&g.st&&g.st.F;if(!F||!T.running)return'';const v=spm(performance.now()/1000);if(!v)return'';return Math.abs(v-F)<=2?'work':'done'}},
-  prog:{lab:'Program',prog:true,f:()=>['','']},
+  prog:{lab:'Program / mål',prog:true,f:()=>['','']},
   avgspm:{lab:'Gns slag/min',f:n=>{const e=T.elapsed(),f=session.firstStrokeT;
     return[f!=null&&e-f>3?Math.round(session.strokes/((e-f)/60)):'—','']}},
   strokes:{lab:'Antal slag',f:()=>[String(session.strokes),'']},
@@ -475,7 +475,19 @@ function render(){
 function renderProg(t){
   const g=S.tmode==='prog'?progState():null;
   const lab=t.querySelector('.lab'),ve=t.querySelector('.val'),nx=t.querySelector('.nx'),cd=t.querySelector('.cd');
-  if(!g){lab.textContent='Program';ve.textContent='Vælg timertype "Program" under ⚙';ve.style.fontSize='min(7cqw,14cqh)';nx.textContent='';cd.textContent='';t.className='tile prog';return}
+  if(!g){ // goal / timer view in the same big tile
+    const ts=timerState(),el=T.elapsed(),m=S.tmode;let title,sub,c;
+    if(m==='dist'){const d=Math.round(session.dist),tot=S.tdist||0;title=T.finished?'Mål nået!':tot+' m';
+      sub=d+' m af '+tot+' · '+(tot?Math.min(100,Math.round(d/tot*100)):0)+' % · '+mmss(el);c=Math.round(ts.main)+' m'}
+    else if(m==='down'){title=T.finished?'Mål nået!':mmss((S.tdown||0)*60);sub='Forløbet '+mmss(el)+' · '+Math.round(session.dist)+' m';c=mmss(ts.main)}
+    else if(m==='int'){title=ts.phase;sub='Arbejde '+S.twork+' s · pause '+S.trest+' s · '+Math.round(session.dist)+' m';c=mmss(ts.main)}
+    else{title='Fri træning';sub=Math.round(session.dist)+' m · tryk Mål for at sætte et mål';c=mmss(el)}
+    lab.textContent=m==='up'?'Træning':m==='dist'?'Distancemål':m==='down'?'Tidsmål':'Interval';
+    if(ve.dataset.t!==title){ve.dataset.t=title;ve.textContent=title;const L=Math.max(6,title.length);
+      ve.style.fontSize='calc(var(--nz)*'+(L<=14?'min('+(170/L).toFixed(1)+'cqw,34cqh)':'min('+(340/L).toFixed(1)+'cqw,20cqh)')+')'}
+    nx.textContent=sub;cd.textContent=c;t.className='tile prog '+(m==='up'?'':ts.cls);
+    const sk=t.querySelector('.skip');if(sk)sk.style.display='none';return}
+  {const sk=t.querySelector('.skip');if(sk)sk.style.display=''}
   lab.textContent=g.name+' · trin '+g.pos;
   if(ve.dataset.t!==g.text){ve.dataset.t=g.text;ve.textContent=g.text.replace(/-/g,'\u2011');const L=Math.max(6,g.text.length);
     // fit text: approx 0.5em per char, up to 2 lines
