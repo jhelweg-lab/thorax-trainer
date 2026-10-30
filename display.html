@@ -120,7 +120,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.5.2</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.5.3</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -438,7 +438,7 @@ const FIELDS={
   avgwatt:{lab:'Gns watt',f:()=>{const a=wattAvg();return[a==null?'—':String(Math.round(a)),'W']}},
   wattkg:{lab:'Watt/kg',f:()=>[S.kg>0?(wattNow()/S.kg).toFixed(2):'—','W/kg']},
   elapsed:{lab:'Forløbet tid',f:()=>[mmss(T.elapsed()),'']},
-  timer:{lab:'Timer',f:()=>{const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?(T.finished?'MÅL NÅET':'m tilbage'):ts.phase]},cls:()=>timerState().cls},
+  timer:{lab:'Timer',f:()=>{if(S.tmode==='dist')return[mmss(T.elapsed()),T.finished?'MÅL NÅET':'forløbet tid'];const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?(T.finished?'MÅL NÅET':'m tilbage'):ts.phase]},cls:()=>timerState().cls},
   remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
   phase:{lab:'Fase',f:()=>[timerState().phase,''],sm:true,cls:()=>timerState().cls},
   hr:{lab:'Puls',f:()=>{const b=hrNow();return[b?String(b):'—',b&&S.hrmax>0?Math.round(b/S.hrmax*100)+' % af maks':'bpm']},cls:()=>{const b=hrNow();if(!b||!(S.hrmax>0))return'';const z=b/S.hrmax;return z>=0.9?'done':z>=0.8?'rest':''}},
