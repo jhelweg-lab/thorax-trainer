@@ -77,7 +77,7 @@
 // Kør præcis samme program i Nordic Strong (med skærmoptagelse) og i vores app, samme dag og med samme oplevede indsats.
 // M3-serierne: moderat indsats (ikke all-out). M10-serierne: så hårdt du kan holde 1:30.
 // Lad svinghjulet løbe frit ud i pauserne – brems det ikke.
-3:00 Opvarmning DS M3
+2:00 Opvarmning DS M3
 1:00 PAUSE – start optagelse
 1:30 DS M3 F35 moderat
 1:00 PAUSE
