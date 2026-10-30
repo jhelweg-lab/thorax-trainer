@@ -483,11 +483,13 @@ function renderProg(t){
     else if(m==='int'){title=ts.phase;sub='Arbejde '+S.twork+' s · pause '+S.trest+' s · '+Math.round(session.dist)+' m';c=mmss(ts.main)}
     else{title='Fri træning';sub=Math.round(session.dist)+' m · tryk Mål for at sætte et mål';c=mmss(el)}
     lab.textContent=m==='up'?'Træning':m==='dist'?'Distancemål':m==='down'?'Tidsmål':'Interval';
-    if(ve.dataset.t!==title){ve.dataset.t=title;ve.textContent=title;const L=Math.max(6,title.length);
-      ve.style.fontSize='calc(var(--nz)*'+(L<=14?'min('+(170/L).toFixed(1)+'cqw,34cqh)':'min('+(340/L).toFixed(1)+'cqw,20cqh)')+')'}
-    nx.textContent=sub;cd.textContent=c;t.className='tile prog '+(m==='up'?'':ts.cls);
+    // big: the live countdown/progress; small (right): the goal itself
+    ve.textContent=c;{const L=Math.max(4,c.length);if(ve.dataset.L!==String(L)){ve.dataset.L=String(L);ve.dataset.t='';
+      ve.style.fontSize='calc(var(--nz)*min('+(150/L).toFixed(1)+'cqw,46cqh))'}}
+    nx.textContent=sub;cd.textContent=title;cd.style.fontSize='calc(var(--nz)*min(9cqw,13cqh))';cd.style.color='var(--mut)';t.className='tile prog '+(m==='up'?'':ts.cls);
     const sk=t.querySelector('.skip');if(sk)sk.style.display='none';return}
   {const sk=t.querySelector('.skip');if(sk)sk.style.display=''}
+  cd.style.fontSize='';cd.style.color='';
   lab.textContent=g.name+' · trin '+g.pos;
   if(ve.dataset.t!==g.text){ve.dataset.t=g.text;ve.textContent=g.text.replace(/-/g,'\u2011');const L=Math.max(6,g.text.length);
     // fit text: approx 0.5em per char, up to 2 lines
