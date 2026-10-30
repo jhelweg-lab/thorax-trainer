@@ -685,9 +685,29 @@ async function buildMachines(){
   list=list.filter(d=>known[d.id]).sort((a,b)=>known[a.id].localeCompare(known[b.id],'da',{numeric:true}));
   if(!list.length){box.innerHTML='<p class="note">Ingen husket endnu. Forbind én gang til hver maskine med "Forbind" (med "Tillad baggrundsforbindelser" slået til), så dukker de op her med navn.</p>';return}
   list.forEach(d=>{const b=document.createElement('button');b.innerHTML=known[d.id]+' <span style="color:#8a97a3;font-size:.8em">'+(d.id||'').slice(0,4).toUpperCase()+'</span>';b.style.margin='4px';
-    b.onclick=async()=>{closeMachines();try{if(dev&&dev.gatt&&dev.gatt.connected)dev.gatt.disconnect();await attach(d,known[d.id])}
-      catch(e){setStatus('Kunne ikke forbinde til '+known[d.id]+' – træk i grebene og prøv igen ('+((e&&e.message)||e)+')')}};
+    b.onclick=async()=>{closeMachines();try{if(dev&&dev.gatt&&dev.gatt.connected)dev.gatt.disconnect();await connectKnown(d,known[d.id])}
+      catch(e){setStatus('Kunne ikke forbinde til '+known[d.id]+' ('+((e&&e.name)?e.name+': ':'')+((e&&e.message)||e)+')');toast('Kunne ikke forbinde til <b>'+known[d.id]+'</b><br><span style="font-size:.45em">Træk i grebene og prøv igen. Virker det ikke, så brug Forbind og vælg koden '+(d.id||'').slice(0,4).toUpperCase()+'… i listen.</span>')}};
     box.appendChild(b)});
+}
+// A remembered device must often be "seen" again by a scan before it can be connected after a reload / new day.
+function withTimeout(p,ms,msg){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(msg||'timeout')),ms))])}
+async function connectKnown(d,label){
+  // 1) direct attempt
+  try{await withTimeout(attach(d,label),7000,'intet svar');return}catch(e1){
+    try{d.gatt&&d.gatt.connected&&d.gatt.disconnect()}catch(_){}
+    // 2) wake the stored device by listening for its advertisement, then connect
+    if(d.watchAdvertisements){
+      setStatus('Leder efter '+label+' – træk i grebene…');toast('Leder efter <b>'+label+'</b><br><span style="font-size:.5em">Træk et par gange i grebene</span>');
+      let ac=null;try{ac=new AbortController()}catch(_){}
+      try{
+        await withTimeout(new Promise((res,rej)=>{d.addEventListener('advertisementreceived',()=>res(),{once:true});
+          d.watchAdvertisements(ac?{signal:ac.signal}:undefined).catch(rej)}),20000,'maskinen blev ikke fundet');
+      }finally{try{ac&&ac.abort()}catch(_){}try{d.unwatchAdvertisements&&d.unwatchAdvertisements()}catch(_){}}
+      $('toast').style.display='none';
+      await withTimeout(attach(d,label),10000,'intet svar');return;
+    }
+    throw e1;
+  }
 }
 function openMachines(){buildMachines();$('mpanel').style.display='block'}
 function closeMachines(){$('mpanel').style.display='none'}
