@@ -70,6 +70,12 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 @media (max-width:560px){#top{flex-wrap:wrap;gap:6px}#status{order:9;flex-basis:100%}#top button{padding:8px 10px}}
 #bar .lvl button:first-child{min-width:54px;flex:0 0 auto;padding:8px 6px}
 #bar>button{flex:1}
+.tile.z1{border-color:#9aa3ad;box-shadow:inset 0 0 0 3px #9aa3ad}
+.tile.z2{border-color:#3b8cff;box-shadow:inset 0 0 0 3px #3b8cff}
+.tile.z3{border-color:#35d07f;box-shadow:inset 0 0 0 3px #35d07f}
+.tile.z4{border-color:#ffb020;box-shadow:inset 0 0 0 3px #ffb020}
+.tile.z5{border-color:#ff4d4d;box-shadow:inset 0 0 0 3px #ff4d4d}
+.tile.z1 .unit,.tile.z1 .lab{color:#9aa3ad}.tile.z2 .unit,.tile.z2 .lab{color:#6aa8ff}.tile.z3 .unit,.tile.z3 .lab{color:#35d07f}.tile.z4 .unit,.tile.z4 .lab{color:#ffb020}.tile.z5 .unit,.tile.z5 .lab{color:#ff6b6b}
 </style>
 </head>
 <body>
@@ -120,7 +126,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.5.5</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.6</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -420,6 +426,7 @@ function wattNow(){
 }
 function wattAvg(){return W.sumT>3?S.wK*W.sumE/W.sumT:null}
 const HR={bpm:0,t:0,sum:0,n:0,max:0,dev:null};
+function hrZone(){const b=hrNow();if(!b||!(S.hrmax>0))return 0;const p=b/S.hrmax;return p>=0.9?5:p>=0.8?4:p>=0.7?3:p>=0.6?2:p>=0.5?1:0}
 function hrNow(){return (HR.bpm&&performance.now()/1000-HR.t<5)?HR.bpm:0}
 const FIELDS={
   spm:{lab:'Slag/min',f:n=>{const v=spm(n),g=S.tmode==='prog'?progState():null,F=g&&g.st&&g.st.F;return[v?Math.round(v):'0',F?'mål '+F:'']},
@@ -441,10 +448,11 @@ const FIELDS={
   timer:{lab:'Timer',f:()=>{if(S.tmode==='dist')return[mmss(T.elapsed()),T.finished?'MÅL NÅET':'forløbet tid'];const ts=timerState();return[ts.isTime===false?Math.round(ts.main)+'':mmss(ts.main),ts.isTime===false?(T.finished?'MÅL NÅET':'m tilbage'):ts.phase]},cls:()=>timerState().cls},
   remain:{lab:'Resttid i alt',f:()=>{const r=timerState().remTotal;return[r==null?'—':mmss(r),'']}},
   phase:{lab:'Fase',f:()=>[timerState().phase,''],sm:true,cls:()=>timerState().cls},
-  hr:{lab:'Puls',f:()=>{const b=hrNow();return[b?String(b):'—',b&&S.hrmax>0?Math.round(b/S.hrmax*100)+' % af maks':'bpm']},cls:()=>{const b=hrNow();if(!b||!(S.hrmax>0))return'';const z=b/S.hrmax;return z>=0.9?'done':z>=0.8?'rest':''}},
+  hr:{lab:'Puls',f:()=>{const b=hrNow(),z=hrZone();return[b?String(b):'—',b&&S.hrmax>0?(z?'Zone '+z+' · ':'')+Math.round(b/S.hrmax*100)+' %':'bpm']},cls:()=>{const z=hrZone();return z?'z'+z:''}},
   avghr:{lab:'Gns puls',f:()=>[HR.n?String(Math.round(HR.sum/HR.n)):'—','bpm']},
   maxhr:{lab:'Maks puls (pas)',f:()=>[HR.max?String(HR.max):'—','bpm']},
-  hrpct:{lab:'% af maks puls',f:()=>{const b=hrNow();return[b&&S.hrmax>0?String(Math.round(b/S.hrmax*100)):'—','%']}},
+  hrpct:{lab:'% af maks puls',f:()=>{const b=hrNow(),z=hrZone();return[b&&S.hrmax>0?String(Math.round(b/S.hrmax*100)):'—',z?'% · Zone '+z:'%']},cls:()=>{const z=hrZone();return z?'z'+z:''}},
+  hrzone:{lab:'Pulszone',f:()=>{const z=hrZone(),b=hrNow();return[z?String(z):'—',b?b+' bpm':'']},cls:()=>{const z=hrZone();return z?'z'+z:''}},
   clock:{lab:'Klokken',f:()=>{const d=new Date();return[String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),'']}}
 };
 const FKEYS=Object.keys(FIELDS);
@@ -765,7 +773,7 @@ $('bDemo').onclick=()=>{
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
-window.__test={toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
+window.__test={HR,toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
 const FONTS={
