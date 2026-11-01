@@ -126,7 +126,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.6</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.7</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -223,7 +223,7 @@ function drUpdate(){ // 55th percentile of recent samples, refreshed every ~40 s
 function estLevel(b){let best=1,d=9;S.wB.forEach((x,i)=>{const e=Math.abs(Math.log(Math.max(b,0.01)/x));if(e<d){d=e;best=i+1}});return best}
 function lvlTxt(b){return b<0.105?'1–4':String(estLevel(b))}
 function curB(){drUpdate();return (S.autoM&&DR.b!=null)?DR.b:(+S.wB[S.level-1]||0)}
-const W={E:0,t0:0,s0:0,last:0,lastT:0,sumE:0,sumT:0};
+const W={ring:[],E:0,t0:0,s0:0,last:0,lastT:0,sumE:0,sumT:0};
 let session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null};
 function onSample(raw,t){ // t in seconds
   let x=raw;
@@ -252,12 +252,12 @@ function onSample(raw,t){ // t in seconds
     if(P.s>P.hi){P.hi=P.s;P.ht=t}
     if(P.hi-P.s>=prom){
       const last=P.strokes.length?P.strokes[P.strokes.length-1]:-9;
-      if(P.m>25&&P.ht-last>=0.4){
+      if(P.m>25&&P.hi>90&&P.ht-last>=0.4){
         P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
-        if(!T.running&&!T.finished&&T.elapsed()===0&&S.autoStart&&P.total>=1)startT();
+        if(!T.running&&!T.finished&&S.autoStart&&P.total>=1&&(T.elapsed()===0||T.autoPaused)){T.autoPaused=false;startT()}
         P.total++;
-        {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const w=Math.max(0,S.wK*(W.E+(P.s*P.s-W.s0*W.s0)/2)/Tc);
-          W.last=W.last>0?0.5*W.last+0.5*w:w;W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}W.t0=t;W.s0=P.s;W.E=0}
+        {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const e=W.E+(P.s*P.s-W.s0*W.s0)/2;W.ring.push([e,Tc]);if(W.ring.length>3)W.ring.shift();
+          const se=W.ring.reduce((a,r)=>a+r[0],0),stc=W.ring.reduce((a,r)=>a+r[1],0);W.last=Math.max(0,S.wK*se/stc);W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}W.t0=t;W.s0=P.s;W.E=0}
         if(T.running){session.strokes++;if(session.firstStrokeT==null)session.firstStrokeT=T.elapsed()}
       }
       P.state=0;P.lo=P.s;
@@ -389,7 +389,13 @@ let cdLast='';
 function cdBeep(r,key){const sec=Math.ceil(r-0.05);if(sec>=1&&sec<=5){const k=key+':'+sec;if(k!==cdLast){cdLast=k;beep(sec===1?1000:800,0.12)}}}
 function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
   const o=actx.createOscillator(),g=actx.createGain();o.type='triangle';o.frequency.value=f;g.gain.value=Math.min(1,0.8*(S.vol||1));o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
+let lastTickT=performance.now();
 function tick(){
+  const nowT=performance.now(),gap=nowT-lastTickT;lastTickT=nowT;
+  if(T.running&&gap>8000){T.acc-=gap;if(T.acc<0)T.acc=0} // app was suspended (screen locked/background): don't count that time
+  if(T.running&&!T.finished&&['up','down','dist'].includes(S.tmode)&&S.autoStart){
+    const ls=P.strokes.length?P.strokes[P.strokes.length-1]:null,now=nowT/1000;
+    if(ls!=null&&now-ls>30){T.acc-=Math.max(0,(now-ls-5))*1000;pause();T.autoPaused=true;toast('Auto-pause<br><span style="font-size:.5em">Træk for at fortsætte</span>')}}
   if(!T.running)return;
   if(S.tmode==='prog'){progTick();return}
   if(S.tmode==='dist'){if(!T.finished&&S.tdist>0&&session.dist>=S.tdist){T.finished=true;pause();beep(880,0.7);saveSession(true)}return}
@@ -408,7 +414,7 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri';saveSession(false)}
-function resetT(){pause();T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function resetT(){pause();W.ring=[];T.autoPaused=false;T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>T.running?pause():startT();
 $('bReset').onclick=()=>{saveSession(true);resetT();LOG=[];lastLog=0;$('csv').value=''};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
@@ -740,22 +746,35 @@ $('bConn').onclick=()=>{
   connect();
 };
 
+async function hrSubscribe(){
+  const srv=await HR.dev.gatt.connect();
+  const ch=await (await srv.getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement');
+  ch.addEventListener('characteristicvaluechanged',e=>{
+    const dv=e.target.value,fl=dv.getUint8(0);
+    const b=(fl&1)?dv.getUint16(1,true):dv.getUint8(1);
+    if(b>0){HR.bpm=b;HR.t=performance.now()/1000;
+      if(T.running){HR.sum+=b;HR.n++;if(b>HR.max)HR.max=b}}
+  });
+  await ch.startNotifications();
+  $('bHR').textContent='♥ '+(HR.dev.name||'Puls');$('bHR').className='pri';
+}
+async function hrReconnect(){
+  if(HR.manualOff||!HR.dev)return;
+  for(let i=1;i<=10&&!HR.manualOff;i++){
+    $('bHR').textContent='♥ genforbinder…';
+    try{await hrSubscribe();return}catch(e){await new Promise(r=>setTimeout(r,Math.min(2000*i,8000)))}
+  }
+  $('bHR').textContent='♥ Puls';$('bHR').className='';
+}
 async function connectHR(){
   if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig');return}
-  if(HR.dev&&HR.dev.gatt&&HR.dev.gatt.connected){HR.dev.gatt.disconnect();return}
+  if(HR.dev&&HR.dev.gatt&&HR.dev.gatt.connected){HR.manualOff=true;HR.dev.gatt.disconnect();return}
   try{
+    HR.manualOff=false;
     HR.dev=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
-    HR.dev.addEventListener('gattserverdisconnected',()=>{$('bHR').textContent='♥ Puls';$('bHR').className='';HR.bpm=0});
-    const srv=await HR.dev.gatt.connect();
-    const ch=await (await srv.getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement');
-    ch.addEventListener('characteristicvaluechanged',e=>{
-      const dv=e.target.value,fl=dv.getUint8(0);
-      const b=(fl&1)?dv.getUint16(1,true):dv.getUint8(1);
-      if(b>0){HR.bpm=b;HR.t=performance.now()/1000;
-        if(T.running){HR.sum+=b;HR.n++;if(b>HR.max)HR.max=b}}
-    });
-    await ch.startNotifications();
-    $('bHR').textContent='♥ '+(HR.dev.name||'Puls');$('bHR').className='pri';
+    HR.dev.addEventListener('gattserverdisconnected',()=>{HR.bpm=0;$('bHR').className='';
+      if(HR.manualOff){$('bHR').textContent='♥ Puls'}else hrReconnect()});
+    await hrSubscribe();
   }catch(e){setStatus('Puls-fejl: '+((e&&e.name)?e.name+' ':'')+((e&&e.message)||String(e)))}
 }
 $('bHR').onclick=connectHR;
