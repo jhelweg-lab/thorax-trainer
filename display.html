@@ -126,7 +126,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.7</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.7.1</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -254,7 +254,7 @@ function onSample(raw,t){ // t in seconds
       const last=P.strokes.length?P.strokes[P.strokes.length-1]:-9;
       if(P.m>25&&P.hi>90&&P.ht-last>=0.4){
         P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
-        if(!T.running&&!T.finished&&S.autoStart&&P.total>=1&&(T.elapsed()===0||T.autoPaused)){T.autoPaused=false;startT()}
+        if(!T.running&&!T.finished&&(S.autoStart||T.armed)&&(T.elapsed()===0||T.autoPaused)){T.autoPaused=false;T.armed=false;startT()}
         P.total++;
         {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const e=W.E+(P.s*P.s-W.s0*W.s0)/2;W.ring.push([e,Tc]);if(W.ring.length>3)W.ring.shift();
           const se=W.ring.reduce((a,r)=>a+r[0],0),stc=W.ring.reduce((a,r)=>a+r[1],0);W.last=Math.max(0,S.wK*se/stc);W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}W.t0=t;W.s0=P.s;W.E=0}
@@ -414,8 +414,14 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri';saveSession(false)}
-function resetT(){pause();W.ring=[];T.autoPaused=false;T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
-$('bStart').onclick=()=>T.running?pause():startT();
+function resetT(){pause();T.armed=false;$('bStart').textContent='Start';W.ring=[];T.autoPaused=false;T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+$('bStart').onclick=()=>{
+  if(T.running){pause();return}
+  if(T.elapsed()===0&&!T.finished&&!T.armed){ // arm: the clock starts on the first stroke
+    T.armed=true;$('bStart').textContent='Klar – træk';$('bStart').className='pri';
+    try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}
+    wake();return}
+  T.armed=false;startT()};
 $('bReset').onclick=()=>{saveSession(true);resetT();LOG=[];lastLog=0;$('csv').value=''};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
 
