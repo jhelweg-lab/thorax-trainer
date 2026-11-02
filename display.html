@@ -126,7 +126,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.7.1</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.7.2</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -216,9 +216,9 @@ const P={s:0,m:0,disp:0,lastX:0,zeroRun:0,t0:null,tPrev:null,state:0,lo:1e9,hi:0
   strokes:[],total:0,lastZeroT:0};
 const DR={buf:[],run:0,n:0,b:null,lastN:0};
 function drUpdate(){ // 55th percentile of recent samples, refreshed every ~40 samples
-  if(DR.buf.length<60||DR.n-DR.lastN<40)return;DR.lastN=DR.n;
+  const first=DR.b==null;if(DR.buf.length<(first?25:50)||DR.n-DR.lastN<(first?25:30))return;DR.lastN=DR.n;
   const a=DR.buf.slice().sort((p,q)=>p-q),v=Math.max(0.02,a[Math.floor(a.length*0.55)]);
-  DR.b=DR.b==null?v:0.6*DR.b+0.4*v;
+  DR.b=first?v:0.5*DR.b+0.5*v;
 }
 function estLevel(b){let best=1,d=9;S.wB.forEach((x,i)=>{const e=Math.abs(Math.log(Math.max(b,0.01)/x));if(e<d){d=e;best=i+1}});return best}
 function lvlTxt(b){return b<0.105?'1–4':String(estLevel(b))}
@@ -228,7 +228,7 @@ let session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null};
 function onSample(raw,t){ // t in seconds
   let x=raw;
   if(x===0&&P.lastX>0&&P.zeroRun===0){P.zeroRun=1;x=P.lastX}      // isolated dropout
-  else if(x===0){P.zeroRun++}
+  else if(x===0){P.zeroRun++;if(P.zeroRun===80&&(DR.buf.length||DR.b!=null)){DR.buf=[];DR.b=null;DR.n=0;DR.lastN=0}}
   else P.zeroRun=0;
   if(raw!==0)P.lastX=raw; else if(P.zeroRun>1)P.lastX=0;
   const dt=P.tPrev==null?0.06:Math.min(0.5,t-P.tPrev);P.tPrev=t;
@@ -237,7 +237,7 @@ function onSample(raw,t){ // t in seconds
   P.s+=0.5*(x-P.s);
   // --- live drag (brake) estimate from free deceleration in recovery ---
   if(dt>0&&dt<0.15){const ds=(P.s-sPrev)/dt;DR.run=ds<0?DR.run+1:0;
-    if(DR.run>=3&&P.s>100){DR.buf.push((-ds-S.wA)/P.s);if(DR.buf.length>220)DR.buf.shift();DR.n++}}
+    if(DR.run>=3&&P.s>100){DR.buf.push((-ds-S.wA)/P.s);if(DR.buf.length>150)DR.buf.shift();DR.n++}}
   P.m+=Math.min(1,dt/2.0)*(x-P.m);
   P.disp+=Math.min(1,dt/0.5)*(x-P.disp);
   if(x===0&&P.zeroRun>16){P.state=0;P.lo=P.s;P.m*=0.9}
@@ -384,13 +384,18 @@ function timerState(){
   if(w<p.work)return{main:p.work-w,phase:'ARBEJD '+(idx+1)+'/'+p.rounds,cls:'work',remTotal:rem,label:'Interval'};
   return{main:cyc-w,phase:'PAUSE '+(idx+1)+'/'+p.rounds,cls:'rest',remTotal:rem,label:'Interval'};
 }
-let actx=null;
+let actx=null,audioWarned=false;
+function unlockAudio(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state!=='running')actx.resume();
+  const b=actx.createBuffer(1,1,22050),src=actx.createBufferSource();src.buffer=b;src.connect(actx.destination);src.start(0)}catch(e){}}
+['pointerdown','touchend','click'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true}));
 let cdLast='';
 function cdBeep(r,key){const sec=Math.ceil(r-0.05);if(sec>=1&&sec<=5){const k=key+':'+sec;if(k!==cdLast){cdLast=k;beep(sec===1?1000:800,0.12)}}}
 function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
   const o=actx.createOscillator(),g=actx.createGain();o.type='triangle';o.frequency.value=f;g.gain.value=Math.min(1,0.8*(S.vol||1));o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}catch(e){}}
 let lastTickT=performance.now();
 function tick(){
+  if(T.running&&!audioWarned&&(S.metro||S.beep)&&['prog','int','down'].includes(S.tmode)&&(!actx||actx.state!=='running')){audioWarned=true;
+    toast('Ingen lyd endnu<br><span style="font-size:.5em">Tryk én gang på skærmen for at slå lyd til.<br>Tjek også at iPad/iPhone ikke står på lydløs.</span>')}
   const nowT=performance.now(),gap=nowT-lastTickT;lastTickT=nowT;
   if(T.running&&gap>8000){T.acc-=gap;if(T.acc<0)T.acc=0} // app was suspended (screen locked/background): don't count that time
   if(T.running&&!T.finished&&['up','down','dist'].includes(S.tmode)&&S.autoStart){
