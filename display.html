@@ -126,7 +126,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.7.3</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.8.1</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -214,21 +214,28 @@ function save(){try{localStorage.setItem('nsd1',JSON.stringify(S))}catch(e){}}
 const PR=0.025;
 const P={s:0,m:0,disp:0,lastX:0,zeroRun:0,t0:null,tPrev:null,state:0,lo:1e9,hi:0,ht:0,
   strokes:[],total:0,lastZeroT:0};
-const DR={buf:[],run:0,n:0,b:null,lastN:0};
-function drUpdate(){ // 55th percentile of recent samples, refreshed every ~40 samples
-  const first=DR.b==null;if(DR.buf.length<(first?25:50)||DR.n-DR.lastN<(first?25:30))return;DR.lastN=DR.n;
-  const a=DR.buf.slice().sort((p,q)=>p-q),v=Math.max(0.02,a[Math.floor(a.length*0.55)]);
-  DR.b=first?v:0.5*DR.b+0.5*v;
+const DR={buf:[],cur:[],rec:[],run:0,n:0,b:null,lastN:0};
+const med=a=>{const c=a.slice().sort((p,q)=>p-q);return c[Math.floor(c.length/2)]};
+function drUpdate(){}
+// brake estimate per recovery phase; jumps immediately when the resistance is changed
+function drStroke(){
+  const c=DR.cur;DR.cur=[];if(c.length<3)return;
+  const m=Math.max(0.02,med(c));DR.rec.push(m);if(DR.rec.length>3)DR.rec.shift();
+  if(DR.b==null){DR.b=m;return}
+  const r=DR.rec,n=r.length;
+  if(n>=2){const a=r[n-1]/DR.b,b2=r[n-2]/DR.b;
+    if((a>1.3&&b2>1.3)||(a<0.77&&b2<0.77)){DR.b=(r[n-1]+r[n-2])/2;DR.rec=[r[n-2],r[n-1]];return}}
+  DR.b=0.7*DR.b+0.3*med(r);
 }
 function estLevel(b){let best=1,d=9;S.wB.forEach((x,i)=>{const e=Math.abs(Math.log(Math.max(b,0.01)/x));if(e<d){d=e;best=i+1}});return best}
 function lvlTxt(b){return b<0.105?'1–4':String(estLevel(b))}
 function curB(){drUpdate();return (S.autoM&&DR.b!=null)?DR.b:(+S.wB[S.level-1]||0)}
-const W={ring:[],E:0,t0:0,s0:0,last:0,lastT:0,sumE:0,sumT:0};
+const W={ring:[],I1:0,I2:0,E:0,t0:0,s0:0,last:0,lastT:0,sumE:0,sumT:0};
 let session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null};
 function onSample(raw,t){ // t in seconds
   let x=raw;
   if(x===0&&P.lastX>0&&P.zeroRun===0){P.zeroRun=1;x=P.lastX}      // isolated dropout
-  else if(x===0){P.zeroRun++;if(P.zeroRun===80&&(DR.buf.length||DR.b!=null)){DR.buf=[];DR.b=null;DR.n=0;DR.lastN=0}}
+  else if(x===0){P.zeroRun++;if(P.zeroRun===80&&DR.b!=null){DR.cur=[];DR.rec=[];DR.b=null}}
   else P.zeroRun=0;
   if(raw!==0)P.lastX=raw; else if(P.zeroRun>1)P.lastX=0;
   const dt=P.tPrev==null?0.06:Math.min(0.5,t-P.tPrev);P.tPrev=t;
@@ -237,13 +244,13 @@ function onSample(raw,t){ // t in seconds
   P.s+=0.5*(x-P.s);
   // --- live drag (brake) estimate from free deceleration in recovery ---
   if(dt>0&&dt<0.15){const ds=(P.s-sPrev)/dt;DR.run=ds<0?DR.run+1:0;
-    if(DR.run>=3&&P.s>100){DR.buf.push((-ds-S.wA)/P.s);if(DR.buf.length>150)DR.buf.shift();DR.n++}}
+    if(DR.run>=2&&P.s>100){DR.cur.push((-ds-S.wA)/P.s);if(DR.cur.length>60)DR.cur.shift()}}
   P.m+=Math.min(1,dt/2.0)*(x-P.m);
   P.disp+=Math.min(1,dt/0.5)*(x-P.disp);
   if(x===0&&P.zeroRun>16){P.state=0;P.lo=P.s;P.m*=0.9}
   // --- power: K*w*(dw/dt + a + b*w), integrated per stroke cycle ---
   const bL=curB(),q=P.s>3?P.s*(S.wA+bL*P.s):0;
-  W.E+=q*dt;if(T.running){W.sumE+=q*dt;W.sumT+=dt}
+  if(P.s>3){W.I1+=P.s*dt;W.I2+=P.s*P.s*dt}if(T.running){W.sumE+=q*dt;W.sumT+=dt}
   const prom=Math.max(PR*P.m,6);
   if(P.state===0){
     if(P.s<P.lo)P.lo=P.s;
@@ -256,8 +263,16 @@ function onSample(raw,t){ // t in seconds
         P.strokes.push(P.ht);if(P.strokes.length>12)P.strokes.shift();
         if(!T.running&&!T.finished&&(S.autoStart||T.armed)&&(T.elapsed()===0||T.autoPaused)){T.autoPaused=false;T.armed=false;startT()}
         P.total++;
-        {const Tc=t-W.t0;if(W.t0>0&&Tc>0.35&&Tc<5){const e=W.E+(P.s*P.s-W.s0*W.s0)/2;W.ring.push([e,Tc]);if(W.ring.length>3)W.ring.shift();
-          const se=W.ring.reduce((a,r)=>a+r[0],0),stc=W.ring.reduce((a,r)=>a+r[1],0);W.last=Math.max(0,S.wK*se/stc);W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}W.t0=t;W.s0=P.s;W.E=0}
+        drStroke();
+        {const Tc=t-W.t0;let close=true;
+          if(W.t0>0&&Tc>0.35&&Tc<5){const bb=curB(),e=S.wA*W.I1+bb*W.I2+(P.s*P.s-W.s0*W.s0)/2,w1=Math.max(0,S.wK*e/Tc);
+            if(W.last>15&&w1<0.25*W.last&&!W.lowOnce){W.lowOnce=true;close=false} // split stroke: merge it into the next cycle
+            else{W.lowOnce=false;
+              if(W.last>5&&Math.abs(w1-W.last)/W.last>0.3)W.ring=[]; // big change (sprint start/stop): react at once
+              W.ring.push([e,Tc]);if(W.ring.length>3)W.ring.shift();
+              const se=W.ring.reduce((a,r)=>a+r[0],0),stc=W.ring.reduce((a,r)=>a+r[1],0);W.last=Math.max(0,S.wK*se/stc);
+              W.lastT=t;if(T.running&&W.last>(session.maxW||0))session.maxW=W.last}}
+          if(close){W.t0=t;W.s0=P.s;W.I1=0;W.I2=0}}
         if(T.running){session.strokes++;if(session.firstStrokeT==null)session.firstStrokeT=T.elapsed()}
       }
       P.state=0;P.lo=P.s;
@@ -277,7 +292,7 @@ function spm(now){
 }
 
 /* ---------- training programs ---------- */
-const PROG_DEFAULT="// ThoraxTons programmer \u2013 \u00e9n linje pr. trin:  varighed  \u00f8velse  M(modstand)  F(frekvens)\n// Varighed: 2:00 / 0:30 / 45s / 5000m (distance) / -- (\u00e5bent trin, tryk \u203a for n\u00e6ste)\n// Gentagelse: 3x [1:00 DS M5, 0:30 PAUSE]   eller over flere linjer:  3x [  \u2026  ]\n// Forkortelser: DS dobbeltstagning \u00b7 DSF DS m. fraspark \u00b7 Dia diagonal \u00b7 HB/VB h\u00f8jre/venstre ben\n//               1BH \u00e9t-bens hop \u00b7 Sk sk\u00f8jt \u00b7 Forsk forskudt ben \u00b7 H/V h\u00f8jre/venstre\n\n# Nov \u2013 5000 m test\n2:00 DS M1-3\n1:00 Dia M1-3\n0:30 HB M1-3\n0:30 VB M1-3\n1:00 Sk\u00f8jt M1-3\n1:00 1BH M1-3\n0:30 Dia-H M1-3\n0:30 Dia-V M1-3\n1:00 DSF M1-3\n0:30 Forsk V forrest M1-3\n0:30 Forsk H forrest M1-3\n1:00 DS M1-3\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS M test+1\n0:30 PAUSE\n5000m TEST 5000 m \u2013 GO!\n\n# Jan \u2013 tirsdage\n2:00 DS M1\n1:00 Dia M1\n1:00 HB M1\n1:00 VB M1\n1:00 Walk M3\n1:00 1BH M3\n1:00 Dia-H M3\n1:00 Dia-V M3\n1:00 DS M3\n2:00 PAUSE\n3:00 DS M6-7 F42\n1:00 PAUSE\n3:00 DS M6-7 F46\n1:00 PAUSE\n3:00 DS M6-7 F50\n2:00 PAUSE\n// 4 x 2 min med 30 sek pause\n0:30 Front/v\u00e6g: DS M4\n0:30 Front/v\u00e6g: Dia M4\n0:15 Front/v\u00e6g: DS-H M4\n0:15 Front/v\u00e6g: DS-V M4\n0:30 Front/v\u00e6g: DS-hop M4\n0:30 PAUSE\n0:30 Bag/sal: DS M4\n0:30 Bag/sal: Dia M4\n0:15 Bag/sal: DS-H M4\n0:15 Bag/sal: DS-V M4\n0:30 Bag/sal: 1BH M4\n0:30 PAUSE\n0:30 Bag/v\u00e6g: DS M4\n0:30 Bag/v\u00e6g: Dia M4\n0:15 Bag/v\u00e6g: DS-H M4\n0:15 Bag/v\u00e6g: DS-V M4\n0:30 Bag/v\u00e6g: DS-hop M4\n0:30 PAUSE\n1:00 Broom H M10\n1:00 Broom V M10\n2:00 PAUSE\n// Hovedserie \u2013 pyramide 1-2-3-4-3-2-1\n1:00 DS M8\n2:00 Sk\u00f8jt M7\n3:00 DSF/Dia/1BH M7\n4:00 DS/Dia/1BH/DS M6\n3:00 DSF/Dia/1BH M7\n2:00 Sk\u00f8jt M7\n1:00 DS M8 (10)\n\n# Kalibrering v3\n// K\u00f8r pr\u00e6cis samme program i Nordic Strong (med sk\u00e6rmoptagelse) og i vores app, samme dag og med samme oplevede indsats.\n// M3-serierne: moderat indsats (ikke all-out). M10-serierne: s\u00e5 h\u00e5rdt du kan holde 1:30.\n// Lad svinghjulet l\u00f8be frit ud i pauserne \u2013 brems det ikke.\n2:00 Opvarmning DS M3\n1:00 PAUSE \u2013 start optagelse\n1:30 DS M3 F35 moderat\n1:00 PAUSE\n1:30 DS M5 F35\n1:00 PAUSE\n1:30 DS M6 F35\n1:00 PAUSE\n1:30 DS M7 F35\n1:00 PAUSE\n1:30 DS M10 F35\n1:00 PAUSE\n1:30 DS M3 F50 moderat\n1:00 PAUSE\n1:30 DS M7 F50\n1:00 PAUSE\n1:30 DS M10 F50 h\u00e5rdt\n1:00 PAUSE \u2013 slut\n";
+const PROG_DEFAULT="// ThoraxTons programmer \u2013 \u00e9n linje pr. trin:  varighed  \u00f8velse  M(modstand)  F(frekvens)\n// Varighed: 2:00 / 0:30 / 45s / 5000m (distance) / -- (\u00e5bent trin, tryk \u203a for n\u00e6ste)\n// Gentagelse: 3x [1:00 DS M5, 0:30 PAUSE]   eller over flere linjer:  3x [  \u2026  ]\n// Forkortelser: DS dobbeltstagning \u00b7 DSF DS m. fraspark \u00b7 Dia diagonal \u00b7 HB/VB h\u00f8jre/venstre ben\n//               1BH \u00e9t-bens hop \u00b7 Sk sk\u00f8jt \u00b7 Forsk forskudt ben \u00b7 H/V h\u00f8jre/venstre\n\n# Nov \u2013 5000 m test\n2:00 DS M1-3\n1:00 Dia M1-3\n0:30 HB M1-3\n0:30 VB M1-3\n1:00 Sk\u00f8jt M1-3\n1:00 1BH M1-3\n0:30 Dia-H M1-3\n0:30 Dia-V M1-3\n1:00 DSF M1-3\n0:30 Forsk V forrest M1-3\n0:30 Forsk H forrest M1-3\n1:00 DS M1-3\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS M test+1\n0:30 PAUSE\n5000m TEST 5000 m \u2013 GO!\n\n# Jan \u2013 tirsdage\n2:00 DS M1\n1:00 Dia M1\n1:00 HB M1\n1:00 VB M1\n1:00 Walk M3\n1:00 1BH M3\n1:00 Dia-H M3\n1:00 Dia-V M3\n1:00 DS M3\n2:00 PAUSE\n3:00 DS M6-7 F42\n1:00 PAUSE\n3:00 DS M6-7 F46\n1:00 PAUSE\n3:00 DS M6-7 F50\n2:00 PAUSE\n// 4 x 2 min med 30 sek pause\n0:30 Front/v\u00e6g: DS M4\n0:30 Front/v\u00e6g: Dia M4\n0:15 Front/v\u00e6g: DS-H M4\n0:15 Front/v\u00e6g: DS-V M4\n0:30 Front/v\u00e6g: DS-hop M4\n0:30 PAUSE\n0:30 Bag/sal: DS M4\n0:30 Bag/sal: Dia M4\n0:15 Bag/sal: DS-H M4\n0:15 Bag/sal: DS-V M4\n0:30 Bag/sal: 1BH M4\n0:30 PAUSE\n0:30 Bag/v\u00e6g: DS M4\n0:30 Bag/v\u00e6g: Dia M4\n0:15 Bag/v\u00e6g: DS-H M4\n0:15 Bag/v\u00e6g: DS-V M4\n0:30 Bag/v\u00e6g: DS-hop M4\n0:30 PAUSE\n1:00 Broom H M10\n1:00 Broom V M10\n2:00 PAUSE\n// Hovedserie \u2013 pyramide 1-2-3-4-3-2-1\n1:00 DS M8\n2:00 Sk\u00f8jt M7\n3:00 DSF/Dia/1BH M7\n4:00 DS/Dia/1BH/DS M6\n3:00 DSF/Dia/1BH M7\n2:00 Sk\u00f8jt M7\n1:00 DS M8 (10)\n\n# Nov \u2013 tirsdage\n2:00 DS M1-3\n1:00 Dia M1-3\n0:30 HB M1-3\n0:30 VB M1-3\n1:00 Sk\u00f8jt M1-3\n1:00 1BH M1-3\n0:30 Dia-H M1-3\n0:30 Dia-V M1-3\n1:00 DSF M1-3\n0:30 Forsk V forrest M1-3\n0:30 Forsk H forrest M1-3\n1:00 DS M1-3\n// MAX-\u00f8velse: 6 x 1 min = 15 s MAX / 45 s rolig (rolig p\u00e5 M1)\n0:15 MAX M7\n0:45 Rolig M1\n0:15 MAX M8\n0:45 Rolig M1\n0:15 MAX M9\n0:45 Rolig M1\n0:15 MAX M10\n0:45 Rolig M1\n0:15 MAX M10\n0:45 Rolig M1\n0:15 MAX M10\n0:45 Rolig M1\n2:00 PAUSE\n// 4 x 2 min med 30 s pause\n2x [\n0:30 Bag/sal: DS M4\n0:30 Bag/sal: Dia M4\n0:15 Bag/sal: DS-H M4\n0:15 Bag/sal: DS-V M4\n0:30 Bag/sal: 2-bens hop M4\n0:30 PAUSE\n0:30 Bag/v\u00e6g: DS M4\n0:30 Bag/v\u00e6g: Dia M4\n0:15 Bag/v\u00e6g: DS-H M4\n0:15 Bag/v\u00e6g: DS-V M4\n0:30 Bag/v\u00e6g: 2-bens hop M4\n0:30 PAUSE\n]\n2:00 PAUSE\n1:00 Broom H M8\n1:00 Broom V M8\n2:00 PAUSE\n// Hovedserie: 3 blokke af 5 x 1:30 (70 s indsats / 20 s pause)\n1:10 Blok 1: Dia M5\n0:20 PAUSE\n1:10 Blok 1: DSF M6\n0:20 PAUSE\n1:10 Blok 1: Sk\u00f8jt M6\n0:20 PAUSE\n1:10 Blok 1: 1BH M6\n0:20 PAUSE\n1:10 Blok 1: DS M6\n0:20 PAUSE\n1:10 Blok 2: Dia M6\n0:20 PAUSE\n1:10 Blok 2: DSF M7\n0:20 PAUSE\n1:10 Blok 2: Sk\u00f8jt M7\n0:20 PAUSE\n1:10 Blok 2: 1BH M7\n0:20 PAUSE\n1:10 Blok 2: DS M7\n0:20 PAUSE\n1:10 Blok 3: Dia M7\n0:20 PAUSE\n1:10 Blok 3: DSF M8\n0:20 PAUSE\n1:10 Blok 3: Sk\u00f8jt M8\n0:20 PAUSE\n1:10 Blok 3: 1BH M8\n0:20 PAUSE\n1:10 Blok 3: DS M10 \u2013 sidste!\n\n# Okt \u2013 5000 m test\n2:00 DS M1-3\n1:00 Dia M1-3\n0:30 HB M1-3\n0:30 VB M1-3\n1:00 Sk\u00f8jt M1-3\n1:00 1BH M1-3\n0:30 Dia-H M1-3\n0:30 Dia-V M1-3\n1:00 DSF M1-3\n0:30 Forsk V forrest M1-3\n0:30 Forsk H forrest M1-3\n1:00 DS M1-3\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS stigende M\n0:30 PAUSE\n1:00 DS M test+1\n0:30 PAUSE\n5000m TEST 5000 m \u2013 GO!\n\n# Nov \u2013 torsdage\n2:00 DS M1-3\n1:00 Dia M1-3\n1:00 HB M1-3\n1:00 VB M1-3\n1:00 Telemark hop hvert 3. M1-3\n1:00 Telemark hop hvert 2. M1-3\n1:00 Telemark hop hvert tag M1-3\n1:00 DSF M1-3\n1:00 DS M1-3\n2:00 PAUSE\n// 3 x 2 min med 1 min pause\n0:30 Bag/sal: DS M4\n0:30 Bag/sal: Dia M4\n0:15 Bag/sal: DS-H M4\n0:15 Bag/sal: DS-V M4\n0:30 Bag/sal: 2-bens hop M4\n1:00 PAUSE\n0:30 Bag/v\u00e6g: DS M4\n0:30 Bag/v\u00e6g: Dia M4\n0:15 Bag/v\u00e6g: DS-H M4\n0:15 Bag/v\u00e6g: DS-V M4\n0:30 Bag/v\u00e6g: 2-bens hop M4\n1:00 PAUSE\n1:00 Broom H M8\n1:00 Broom V M8\n4:00 PAUSE\n// Hovedserie (Vasa-program): 3 x (3 x 3 min / 1 min pause). Samme watt uanset frekvens \u2013 overhold frekvensen!\n3:00 DS M5 F40 (alt. 6)\n1:00 PAUSE\n3:00 DS M5 F50 (alt. 6)\n1:00 PAUSE\n3:00 DS M5 F40 (alt. 6)\n2:00 PAUSE\n3:00 DS M6 F40 (alt. 7)\n1:00 PAUSE\n3:00 DS M6 F50 (alt. 7)\n1:00 PAUSE\n3:00 DS M6 F40 (alt. 7)\n2:00 PAUSE\n3:00 DS M7 F40 (alt. 8)\n1:00 PAUSE\n3:00 DS M7 F50 (alt. 8)\n1:00 PAUSE\n3:00 DS M7 F40 (alt. 8)\n\n# Kalibrering v3\n// K\u00f8r pr\u00e6cis samme program i Nordic Strong (med sk\u00e6rmoptagelse) og i vores app, samme dag og med samme oplevede indsats.\n// M3-serierne: moderat indsats (ikke all-out). M10-serierne: s\u00e5 h\u00e5rdt du kan holde 1:30.\n// Lad svinghjulet l\u00f8be frit ud i pauserne \u2013 brems det ikke.\n2:00 Opvarmning DS M3\n1:00 PAUSE \u2013 start optagelse\n1:30 DS M3 F35 moderat\n1:00 PAUSE\n1:30 DS M5 F35\n1:00 PAUSE\n1:30 DS M6 F35\n1:00 PAUSE\n1:30 DS M7 F35\n1:00 PAUSE\n1:30 DS M10 F35\n1:00 PAUSE\n1:30 DS M3 F50 moderat\n1:00 PAUSE\n1:30 DS M7 F50\n1:00 PAUSE\n1:30 DS M10 F50 h\u00e5rdt\n1:00 PAUSE \u2013 slut\n";
 function parseDur(tok){
   let m;
   if(tok==='--')return{open:true};
