@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Nordic Display</title>
 <style>
-:root{--bg:#0b0d10;--card:#151a20;--fg:#f2f5f7;--mut:#8a97a3;--acc:#35d07f;--warn:#ffb020;--bad:#ff5d5d;--line:#26303a}
+:root{--bg:#0b0d10;--card:#151a20;--fg:#f2f5f7;--mut:#8a97a3;--acc:#35d07f;--warn:#ffb020;--bad:#ff5d5d;--line:#26303a;--btn:#1f2730;--inp:#1a2128;--ta:#0f1418;--nx:#c3ccd4;--z1:#9aa3ad;--z2:#3b8cff;--z2t:#6aa8ff;--z3:#35d07f;--z4:#ffb020;--z5:#ff4d4d;--z5t:#ff6b6b}
+:root[data-theme=light]{--bg:#ffffff;--card:#f3f5f7;--fg:#0b0d10;--mut:#4f5b66;--acc:#13a356;--warn:#d98200;--bad:#d92d2d;--line:#c9d1d9;--btn:#e6eaee;--inp:#ffffff;--ta:#ffffff;--nx:#2b343c;--z1:#7d8791;--z2:#1f6fe0;--z2t:#1f6fe0;--z3:#13a356;--z4:#d98200;--z5:#d92d2d;--z5t:#d92d2d}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;-webkit-user-select:none;user-select:none}
 body{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #top{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line)}
 #status{flex:1;font-size:14px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #status.ok{color:var(--acc)}
-button{font:inherit;color:var(--fg);background:#1f2730;border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px}
+button{font:inherit;color:var(--fg);background:var(--btn);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px}
 button.pri{background:var(--acc);color:#04120a;border-color:var(--acc);font-weight:700}
 button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-weight:700}
 #grid{flex:1;display:grid;gap:8px;padding:8px;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);min-height:0}
@@ -45,7 +46,7 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
 @media (orientation:landscape){#grid.n5 .tile:first-child{grid-column:1/3;grid-row:auto}}
 .tile.prog .val{white-space:normal;text-align:left;line-height:1.05;font-family:var(--nf);font-weight:var(--nw);overflow:hidden;display:flex;align-items:center;flex:1}
 .tile.prog .pb{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
-.tile.prog .nx{color:#c3ccd4;font-weight:600;font-size:clamp(15px,min(10cqh,5.2cqw),42px);line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:1;min-width:0}
+.tile.prog .nx{color:var(--nx);font-weight:600;font-size:clamp(15px,min(10cqh,5.2cqw),42px);line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:1;min-width:0}
 .tile.prog .cd{font-family:var(--nf);font-weight:var(--nw);font-variant-numeric:tabular-nums;font-size:calc(var(--nz)*min(15cqw,24cqh));line-height:1}
 .tile.prog .skip{position:absolute;top:4px;right:6px;min-height:36px;padding:4px 12px;font-size:18px}
 #fprev{font-family:var(--nf);font-weight:var(--nw);font-size:44px;text-align:center;padding:6px;background:var(--card);border-radius:10px;font-variant-numeric:tabular-nums}
@@ -62,20 +63,20 @@ button.stop{background:var(--bad);color:#210606;border-color:var(--bad);font-wei
 #set h2{margin:14px 0 6px;font-size:16px;color:var(--acc)}
 #set label{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:15px}
 #set label span{min-width:140px;color:var(--mut)}
-#set select,#set input[type=number],#set input[type=text]{background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px;font:inherit;flex:1;min-width:0}
+#set select,#set input[type=number],#set input[type=text]{background:var(--inp);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px;font:inherit;flex:1;min-width:0}
 #set .kg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 #set .kg div{font-size:12px;color:var(--mut)}
-textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px solid var(--line);border-radius:8px;font:12px ui-monospace,monospace;-webkit-user-select:text;user-select:text}
+textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px solid var(--line);border-radius:8px;font:12px ui-monospace,monospace;-webkit-user-select:text;user-select:text}
 .note{font-size:13px;color:var(--mut);margin:4px 0}
 @media (max-width:560px){#top{flex-wrap:wrap;gap:6px}#status{order:9;flex-basis:100%}#top button{padding:8px 10px}}
 #bar .lvl button:first-child{min-width:54px;flex:0 0 auto;padding:8px 6px}
 #bar>button{flex:1}
-.tile.z1{border-color:#9aa3ad;box-shadow:inset 0 0 0 3px #9aa3ad}
-.tile.z2{border-color:#3b8cff;box-shadow:inset 0 0 0 3px #3b8cff}
-.tile.z3{border-color:#35d07f;box-shadow:inset 0 0 0 3px #35d07f}
-.tile.z4{border-color:#ffb020;box-shadow:inset 0 0 0 3px #ffb020}
-.tile.z5{border-color:#ff4d4d;box-shadow:inset 0 0 0 3px #ff4d4d}
-.tile.z1 .unit,.tile.z1 .lab{color:#9aa3ad}.tile.z2 .unit,.tile.z2 .lab{color:#6aa8ff}.tile.z3 .unit,.tile.z3 .lab{color:#35d07f}.tile.z4 .unit,.tile.z4 .lab{color:#ffb020}.tile.z5 .unit,.tile.z5 .lab{color:#ff6b6b}
+.tile.z1{border-color:var(--z1);box-shadow:inset 0 0 0 3px var(--z1)}
+.tile.z2{border-color:var(--z2);box-shadow:inset 0 0 0 3px var(--z2)}
+.tile.z3{border-color:var(--z3);box-shadow:inset 0 0 0 3px var(--z3)}
+.tile.z4{border-color:var(--z4);box-shadow:inset 0 0 0 3px var(--z4)}
+.tile.z5{border-color:var(--z5);box-shadow:inset 0 0 0 3px var(--z5)}
+.tile.z1 .unit,.tile.z1 .lab{color:var(--z1)}.tile.z2 .unit,.tile.z2 .lab{color:var(--z2t)}.tile.z3 .unit,.tile.z3 .lab{color:var(--z3)}.tile.z4 .unit,.tile.z4 .lab{color:var(--z4)}.tile.z5 .unit,.tile.z5 .lab{color:var(--z5t)}
 </style>
 </head>
 <body>
@@ -105,12 +106,12 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <div style="display:flex;gap:8px;margin:14px 0">
     <button class="gt" data-m="up" style="flex:1">Fri træning</button><button class="gt" data-m="down" style="flex:1">Tid</button><button class="gt" data-m="dist" style="flex:1">Distance</button></div>
   <div id="gTime" style="display:none;text-align:center">
-    <input id="gMin" type="number" inputmode="numeric" min="0" max="300" style="width:4.2em;font-size:44px;text-align:center;background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:10px"> <b style="font-size:44px">:</b>
-    <input id="gSec" type="number" inputmode="numeric" min="0" max="59" style="width:3.2em;font-size:44px;text-align:center;background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:10px">
+    <input id="gMin" type="number" inputmode="numeric" min="0" max="300" style="width:4.2em;font-size:44px;text-align:center;background:var(--inp);color:var(--fg);border:1px solid var(--line);border-radius:10px"> <b style="font-size:44px">:</b>
+    <input id="gSec" type="number" inputmode="numeric" min="0" max="59" style="width:3.2em;font-size:44px;text-align:center;background:var(--inp);color:var(--fg);border:1px solid var(--line);border-radius:10px">
     <div class="note">Minutter : sekunder</div>
     <div style="margin-top:8px"><button class="gq" data-t="600">10 min</button> <button class="gq" data-t="1200">20 min</button> <button class="gq" data-t="1800">30 min</button> <button class="gq" data-t="3600">60 min</button></div></div>
   <div id="gDist" style="display:none;text-align:center">
-    <input id="gM" type="number" inputmode="numeric" min="50" step="50" style="width:5em;font-size:44px;text-align:center;background:#1a2128;color:var(--fg);border:1px solid var(--line);border-radius:10px">
+    <input id="gM" type="number" inputmode="numeric" min="50" step="50" style="width:5em;font-size:44px;text-align:center;background:var(--inp);color:var(--fg);border:1px solid var(--line);border-radius:10px">
     <div class="note">Meter</div>
     <div style="margin-top:8px"><button class="gq" data-d="1000">1000</button> <button class="gq" data-d="2000">2000</button> <button class="gq" data-d="5000">5000</button> <button class="gq" data-d="10000">10000</button></div></div>
   <div style="text-align:center;margin-top:16px"><button id="gSave" class="pri" style="min-width:9em;font-size:20px">Gem</button></div>
@@ -126,7 +127,7 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.8.1</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.9</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -164,6 +165,8 @@ textarea{width:100%;height:130px;background:#0f1418;color:var(--fg);border:1px s
   <button id="vTest">Test lyd</button>
   <label><span><input type="checkbox" id="metro" style="min-width:auto"> Metronom ved F-mål i program</span></label>
   <p class="note">Appen kan køre som timer og metronom uden at være forbundet – fx mens Nordic Strong-appen er forbundet til maskinen.</p>
+  <h2>Farver</h2>
+  <label><span>Tema</span><select id="theme"><option value="dark">Mørk (hvid tekst på sort)</option><option value="light">Lys (sort tekst på hvid)</option></select></label>
   <h2>Skrifttype for tal</h2>
   <label><span>Skrift</span><select id="font">
     <option value="sf">SF Pro (systemskrift)</option>
@@ -203,7 +206,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.083,0.11,0.14,0.155,0.22,0.254,0.328,0.375],wv:6,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,showLvl:false,stW:'',stId:'',stAuto:false,st:null};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,theme:'dark',showLvl:false,stW:'',stId:'',stAuto:false,st:null};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==6){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=6}
@@ -669,14 +672,14 @@ function buildSettings(){
   for(let i=0;i<10;i++){
     const d=document.createElement('div');d.innerHTML='M'+(i+1)+'<br>';
     const inp=document.createElement('input');inp.type='number';inp.step='any';inp.value=S.wB[i];
-    inp.style.cssText='width:100%;background:#1a2128;color:#f2f5f7;border:1px solid #26303a;border-radius:8px;padding:8px;font:inherit';
+    inp.style.cssText='width:100%;background:var(--inp);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit';
     inp.oninput=()=>{const v=parseFloat(inp.value);if(!isNaN(v)){S.wB[i]=v;save()}};d.appendChild(inp);kg.appendChild(d);
   }
   $('wReset').onclick=()=>{S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();save();buildSettings()};
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('theme');e.value=S.theme||'dark';e.onchange=()=>{S.theme=e.value;save();applyTheme()}}{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -896,6 +899,8 @@ $('stOff').onclick=()=>{S.st=null;save();stShow()};
 $('stKeyBtn').onclick=async()=>{const k=$('stKey').value.trim();if(!k)return;S.st={refresh:k,access:'',exp:0,name:''};save();
   try{await stAccess();toast('Forbundet til Strava');$('stKey').value=''}catch(e){S.st=null;save();toast('Nøglen virkede ikke<br><span style="font-size:.5em">'+e.message+'</span>')}stShow()};
 stShow();stHandleCallback();
+function applyTheme(){document.documentElement.dataset.theme=S.theme==='light'?'light':'dark';const m=document.querySelector('meta[name=theme-color]');if(m)m.content=S.theme==='light'?'#ffffff':'#0b0d10'}
+applyTheme();
 applyFont();
 buildGrid();buildSettings();buildLevels();
 setInterval(()=>{tick();logRow();render()},100);
