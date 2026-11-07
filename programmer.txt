@@ -1,21 +1,21 @@
 // ThoraxTons programmer – én linje pr. trin:  varighed  øvelse  M(modstand)  F(frekvens)
 // Varighed: 2:00 / 0:30 / 45s / 5000m (distance) / -- (åbent trin, tryk › for næste)
 // Gentagelse: 3x [1:00 DS M5, 0:30 PAUSE]   eller over flere linjer:  3x [  …  ]
-// Forkortelser: DS dobbeltstagning · DSF DS m. fraspark · Dia diagonal · HB/VB højre/venstre ben
-//               1BH ét-bens hop · Sk skøjt · Forsk forskudt ben · H/V højre/venstre
+// Forkortelser: DS dobbeltstagning · DS-fraspark DS m. fraspark · Dia diagonal · Hø-ben/Ve-ben højre/venstre ben
+//               1BH ét-bens hop · Forsk forskudt ben · Hø/Ve højre/venstre
 
 # Nov – 5000 m test
 2:00 DS M1-3
 1:00 Dia M1-3
-0:30 HB M1-3
-0:30 VB M1-3
+0:30 Hø-ben M1-3
+0:30 Ve-ben M1-3
 1:00 Skøjt M1-3
 1:00 1BH M1-3
-0:30 Dia-H M1-3
-0:30 Dia-V M1-3
-1:00 DSF M1-3
-0:30 Forsk V forrest M1-3
-0:30 Forsk H forrest M1-3
+0:30 Dia-Hø M1-3
+0:30 Dia-Ve M1-3
+1:00 DS-fraspark M1-3
+0:30 Forsk Ve forrest M1-3
+0:30 Forsk Hø forrest M1-3
 1:00 DS M1-3
 1:00 DS stigende M
 0:30 PAUSE
@@ -28,12 +28,12 @@
 # Jan – tirsdage
 2:00 DS M1
 1:00 Dia M1
-1:00 HB M1
-1:00 VB M1
+1:00 Hø-ben M1
+1:00 Ve-ben M1
 1:00 Walk M3
 1:00 1BH M3
-1:00 Dia-H M3
-1:00 Dia-V M3
+1:00 Dia-Hø M3
+1:00 Dia-Ve M3
 1:00 DS M3
 2:00 PAUSE
 3:00 DS M6-7 F42
@@ -45,46 +45,46 @@
 // 4 x 2 min med 30 sek pause
 0:30 Front/væg: DS M4
 0:30 Front/væg: Dia M4
-0:15 Front/væg: DS-H M4
-0:15 Front/væg: DS-V M4
+0:15 Front/væg: DS-Hø M4
+0:15 Front/væg: DS-Ve M4
 0:30 Front/væg: DS-hop M4
 0:30 PAUSE
 0:30 Bag/sal: DS M4
 0:30 Bag/sal: Dia M4
-0:15 Bag/sal: DS-H M4
-0:15 Bag/sal: DS-V M4
+0:15 Bag/sal: DS-Hø M4
+0:15 Bag/sal: DS-Ve M4
 0:30 Bag/sal: 1BH M4
 0:30 PAUSE
 0:30 Bag/væg: DS M4
 0:30 Bag/væg: Dia M4
-0:15 Bag/væg: DS-H M4
-0:15 Bag/væg: DS-V M4
+0:15 Bag/væg: DS-Hø M4
+0:15 Bag/væg: DS-Ve M4
 0:30 Bag/væg: DS-hop M4
 0:30 PAUSE
-1:00 Broom H M10
-1:00 Broom V M10
+1:00 Broom Hø M10
+1:00 Broom Ve M10
 2:00 PAUSE
 // Hovedserie – pyramide 1-2-3-4-3-2-1
 1:00 DS M8
 2:00 Skøjt M7
-3:00 DSF/Dia/1BH M7
+3:00 DS-fraspark/Dia/1BH M7
 4:00 DS/Dia/1BH/DS M6
-3:00 DSF/Dia/1BH M7
+3:00 DS-fraspark/Dia/1BH M7
 2:00 Skøjt M7
 1:00 DS M8 (10)
 
 # Nov – tirsdage
 2:00 DS M1-3
 1:00 Dia M1-3
-0:30 HB M1-3
-0:30 VB M1-3
+0:30 Hø-ben M1-3
+0:30 Ve-ben M1-3
 1:00 Skøjt M1-3
 1:00 1BH M1-3
-0:30 Dia-H M1-3
-0:30 Dia-V M1-3
-1:00 DSF M1-3
-0:30 Forsk V forrest M1-3
-0:30 Forsk H forrest M1-3
+0:30 Dia-Hø M1-3
+0:30 Dia-Ve M1-3
+1:00 DS-fraspark M1-3
+0:30 Forsk Ve forrest M1-3
+0:30 Forsk Hø forrest M1-3
 1:00 DS M1-3
 // MAX-øvelse: 6 x 1 min = 15 s MAX / 45 s rolig (rolig på M1)
 0:15 MAX M7
@@ -104,25 +104,25 @@
 2x [
 0:30 Bag/sal: DS M4
 0:30 Bag/sal: Dia M4
-0:15 Bag/sal: DS-H M4
-0:15 Bag/sal: DS-V M4
+0:15 Bag/sal: DS-Hø M4
+0:15 Bag/sal: DS-Ve M4
 0:30 Bag/sal: 2-bens hop M4
 0:30 PAUSE
 0:30 Bag/væg: DS M4
 0:30 Bag/væg: Dia M4
-0:15 Bag/væg: DS-H M4
-0:15 Bag/væg: DS-V M4
+0:15 Bag/væg: DS-Hø M4
+0:15 Bag/væg: DS-Ve M4
 0:30 Bag/væg: 2-bens hop M4
 0:30 PAUSE
 ]
 2:00 PAUSE
-1:00 Broom H M8
-1:00 Broom V M8
+1:00 Broom Hø M8
+1:00 Broom Ve M8
 2:00 PAUSE
 // Hovedserie: 3 blokke af 5 x 1:30 (70 s indsats / 20 s pause)
 1:10 Blok 1: Dia M5
 0:20 PAUSE
-1:10 Blok 1: DSF M6
+1:10 Blok 1: DS-fraspark M6
 0:20 PAUSE
 1:10 Blok 1: Skøjt M6
 0:20 PAUSE
@@ -132,7 +132,7 @@
 0:20 PAUSE
 1:10 Blok 2: Dia M6
 0:20 PAUSE
-1:10 Blok 2: DSF M7
+1:10 Blok 2: DS-fraspark M7
 0:20 PAUSE
 1:10 Blok 2: Skøjt M7
 0:20 PAUSE
@@ -142,7 +142,7 @@
 0:20 PAUSE
 1:10 Blok 3: Dia M7
 0:20 PAUSE
-1:10 Blok 3: DSF M8
+1:10 Blok 3: DS-fraspark M8
 0:20 PAUSE
 1:10 Blok 3: Skøjt M8
 0:20 PAUSE
@@ -153,15 +153,15 @@
 # Okt – 5000 m test
 2:00 DS M1-3
 1:00 Dia M1-3
-0:30 HB M1-3
-0:30 VB M1-3
+0:30 Hø-ben M1-3
+0:30 Ve-ben M1-3
 1:00 Skøjt M1-3
 1:00 1BH M1-3
-0:30 Dia-H M1-3
-0:30 Dia-V M1-3
-1:00 DSF M1-3
-0:30 Forsk V forrest M1-3
-0:30 Forsk H forrest M1-3
+0:30 Dia-Hø M1-3
+0:30 Dia-Ve M1-3
+1:00 DS-fraspark M1-3
+0:30 Forsk Ve forrest M1-3
+0:30 Forsk Hø forrest M1-3
 1:00 DS M1-3
 1:00 DS stigende M
 0:30 PAUSE
@@ -174,48 +174,48 @@
 # Nov – torsdage
 2:00 DS M1-3
 1:00 Dia M1-3
-1:00 HB M1-3
-1:00 VB M1-3
+1:00 Hø-ben M1-3
+1:00 Ve-ben M1-3
 1:00 Telemark hop hvert 3. M1-3
 1:00 Telemark hop hvert 2. M1-3
 1:00 Telemark hop hvert tag M1-3
-1:00 DSF M1-3
+1:00 DS-fraspark M1-3
 1:00 DS M1-3
 2:00 PAUSE
 // 3 x 2 min med 1 min pause
 0:30 Bag/sal: DS M4
 0:30 Bag/sal: Dia M4
-0:15 Bag/sal: DS-H M4
-0:15 Bag/sal: DS-V M4
+0:15 Bag/sal: DS-Hø M4
+0:15 Bag/sal: DS-Ve M4
 0:30 Bag/sal: 2-bens hop M4
 1:00 PAUSE
 0:30 Bag/væg: DS M4
 0:30 Bag/væg: Dia M4
-0:15 Bag/væg: DS-H M4
-0:15 Bag/væg: DS-V M4
+0:15 Bag/væg: DS-Hø M4
+0:15 Bag/væg: DS-Ve M4
 0:30 Bag/væg: 2-bens hop M4
 1:00 PAUSE
-1:00 Broom H M8
-1:00 Broom V M8
+1:00 Broom Hø M8
+1:00 Broom Ve M8
 4:00 PAUSE
 // Hovedserie (Vasa-program): 3 x (3 x 3 min / 1 min pause). Samme watt uanset frekvens – overhold frekvensen!
-3:00 DS M5 F40 (alt. 6)
+3:00 DS M5 (alt 6) F40
 1:00 PAUSE
-3:00 DS M5 F50 (alt. 6)
+3:00 DS M5 (alt 6) F50
 1:00 PAUSE
-3:00 DS M5 F40 (alt. 6)
+3:00 DS M5 (alt 6) F40
 2:00 PAUSE
-3:00 DS M6 F40 (alt. 7)
+3:00 DS M6 (alt 7) F40
 1:00 PAUSE
-3:00 DS M6 F50 (alt. 7)
+3:00 DS M6 (alt 7) F50
 1:00 PAUSE
-3:00 DS M6 F40 (alt. 7)
+3:00 DS M6 (alt 7) F40
 2:00 PAUSE
-3:00 DS M7 F40 (alt. 8)
+3:00 DS M7 (alt 8) F40
 1:00 PAUSE
-3:00 DS M7 F50 (alt. 8)
+3:00 DS M7 (alt 8) F50
 1:00 PAUSE
-3:00 DS M7 F40 (alt. 8)
+3:00 DS M7 (alt 8) F40
 
 # Kalibrering v3
 // Kør præcis samme program i Nordic Strong (med skærmoptagelse) og i vores app, samme dag og med samme oplevede indsats.
