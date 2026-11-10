@@ -84,6 +84,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
   <button id="bConn" class="pri">Forbind</button>
   <button id="bMach">Maskiner</button>
   <div id="status">Ikke forbundet</div>
+  <span id="liveDot" style="display:none;font-size:13px;font-weight:700;letter-spacing:.06em;padding:0 6px;white-space:nowrap">● LIVE</span>
   <button id="bHR">♥ Puls</button>
   <button id="bDemo">Demo</button>
   <button id="bSet">⚙</button>
@@ -127,7 +128,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.9.3</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.10</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -179,6 +180,15 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
   <label><span>Størrelse</span><input type="range" id="fz" min="0.7" max="1.4" step="0.05" style="flex:1"></label>
   <div id="fprev">142 · 3:45 · 18:24</div>
   <p class="note">Barlow og Roboto Condensed ligger som filer ved siden af siden på GitHub. SF og DIN ligger på iPad'en.</p>
+  <h2>Live-tavle</h2>
+  <label><span><input type="checkbox" id="live" style="min-width:auto"> Send mine tal til fælles tavle (TV)</span></label>
+  <label><span>Rumkode</span><input type="text" id="liveRoom" placeholder="fx TONS" autocapitalize="characters" autocomplete="off"></label>
+  <label><span><input type="checkbox" id="liveHR" style="min-width:auto"> Vis også min puls på tavlen</span></label>
+  <div id="liveStatus" class="note">Slået fra.</div>
+  <p class="note">Alle med samme rumkode vises på tavlen med navn (fra "Navn (på pas)" ovenfor), maskine, distance, watt og slag/min. Kræver internet på telefonen (mobildata er fint). Tavlen åbnes på TV-enheden: <a id="liveLink" href="tavle.html" target="_blank" style="color:inherit">tavle.html</a></p>
+  <details><summary class="note">Opsætning (kun én gang)</summary>
+  <label><span>Worker-adresse</span><input type="text" id="liveW" placeholder="https://thorax-live.xxx.workers.dev"></label>
+  </details>
   <h2>Strava</h2>
   <div id="stStatus" class="note">Ikke forbundet til Strava.</div>
   <button id="stConn" class="pri">Forbind til Strava</button> <button id="stOff">Afbryd Strava</button>
@@ -206,7 +216,7 @@ const $=id=>document.getElementById(id);
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.00088,wA:13.6,wB:[0.083,0.083,0.083,0.11,0.14,0.155,0.22,0.254,0.328,0.375],wv:6,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,theme:'dark',showLvl:false,stW:'',stId:'',stAuto:false,st:null};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,theme:'dark',showLvl:false,stW:'',stId:'',stAuto:false,st:null,live:false,liveRoom:'',liveHR:true,liveW:'',liveId:''};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==6){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=6}
@@ -686,7 +696,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('theme');e.value=S.theme||'dark';e.onchange=()=>{S.theme=e.value;save();applyTheme()}}{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('liveRoom','liveRoom');bind('liveHR','liveHR');bind('liveW','liveW');{const e=$('live');e.checked=!!S.live;e.onchange=()=>{S.live=e.checked;save();if(!S.live)liveLeave();liveShow()};$('liveRoom').addEventListener('input',liveShow)}bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('theme');e.value=S.theme||'dark';e.onchange=()=>{S.theme=e.value;save();applyTheme()}}{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -840,7 +850,7 @@ $('bDemo').onclick=()=>{
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
-window.__test={HR,toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
+window.__test={livePayload:()=>livePayload(),HR,toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
 const FONTS={
@@ -854,6 +864,52 @@ function applyFont(){
   const F=FONTS[S.font]||FONTS.sf,r=document.documentElement.style;
   r.setProperty('--nf',F.f);r.setProperty('--nw',F.w);r.setProperty('--nz',(F.z*(S.fz||1)).toFixed(3));
 }
+
+/* ---------- live board (via own Cloudflare Worker) ---------- */
+const LIVE_W='https://thorax-live.jhelweg.workers.dev';
+if(!S.liveW)S.liveW=LIVE_W;
+if(!S.liveId){S.liveId=Math.random().toString(36).slice(2,10)+Date.now().toString(36);save()}
+const LV={busy:false,last:0,ok:0,err:'',n:0};
+function liveBase(){return (S.liveW||'').trim().replace(/\/+$/,'')}
+function liveRoom(){return (S.liveRoom||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,20)}
+function liveOn(){return !!S.live&&liveRoom().length>=2&&!!liveBase()}
+function liveShow(){
+  const e=$('liveStatus'),d=$('liveDot'),now=Date.now();if(!e)return;
+  const good=LV.ok&&now-LV.ok<8000;
+  if(!S.live)e.textContent='Slået fra.';
+  else if(liveRoom().length<2)e.textContent='Skriv en rumkode (mindst 2 bogstaver/tal).';
+  else if(good)e.innerHTML='Sender til rum <b>'+liveRoom()+'</b> ✓';
+  else if(LV.err)e.textContent='Ingen forbindelse til tavlen ('+LV.err+') – prøver igen.';
+  else e.innerHTML='Klar: sender til rum <b>'+liveRoom()+'</b>, når maskinen er forbundet eller timeren kører.';
+  const l=$('liveLink');if(l)l.href='tavle.html'+(liveRoom().length>=2?'?rum='+liveRoom():'');
+  d.style.display=liveOn()?'':'none';d.style.color=good?'#3ddc84':'#888';d.style.opacity=good?1:.6;
+}
+function livePayload(){
+  const now=performance.now()/1000,el=T.elapsed(),aw=wattAvg(),o={n:(S.user||'').trim().slice(0,24),r:T.running?1:0,
+    w:Math.round(wattNow()),s:Math.round(spm(now)||0),d:Math.round(session.dist),t:Math.round(el)};
+  if(aw!=null)o.aw=Math.round(aw);if(session.maxW)o.mw=Math.round(session.maxW);
+  try{if(dev&&dev.gatt&&dev.gatt.connected){const m=(S.known||{})[dev.id];if(m)o.m=String(m).slice(0,20)}}catch(e){}
+  if(S.liveHR){const b=hrNow();if(b){o.hr=b;o.z=hrZone()}}
+  if(S.tmode==='prog'){const g=progState();if(g){o.pn=String(g.name).slice(0,30);o.st=String(g.text).slice(0,60);o.pp=g.pos;if(g.isTime&&g.st.t!=null)o.sr=Math.round(g.main)}}
+  return o;
+}
+function liveSend(){
+  if(!liveOn()||LV.busy)return;
+  let conn=false;try{conn=!!(dev&&dev.gatt&&dev.gatt.connected)}catch(e){}
+  const now=Date.now();if(T.running)LV.act=now;
+  const active=T.running||(LV.act&&now-LV.act<60000);
+  if(!active&&!conn&&!demoT)return;
+  if(now-LV.last<(active?1900:5000))return;
+  LV.last=now;LV.busy=true;
+  const ac=new AbortController(),h=setTimeout(()=>ac.abort(),4000);
+  fetch(liveBase()+'/pub',{method:'POST',body:JSON.stringify({room:liveRoom(),id:S.liveId,d:livePayload()}),signal:ac.signal,keepalive:true})
+    .then(r=>{if(r.ok){LV.ok=Date.now();LV.err=''}else LV.err='fejl '+r.status})
+    .catch(()=>{LV.err='intet net'}).finally(()=>{clearTimeout(h);LV.busy=false});
+}
+function liveLeave(){if(liveRoom().length<2||!liveBase())return;
+  try{fetch(liveBase()+'/leave',{method:'POST',body:JSON.stringify({room:liveRoom(),id:S.liveId}),keepalive:true}).catch(()=>{})}catch(e){}LV.ok=0}
+setInterval(()=>{liveSend();liveShow()},500);
+
 /* ---------- Strava (via own Cloudflare Worker) ---------- */
 const ST={busy:false};
 const ST_W='https://thorax-strava.jhelweg.workers.dev',ST_ID='291175';
