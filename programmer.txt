@@ -451,3 +451,41 @@
 1:00 PAUSE
 1:30 DS M10 F50 hårdt
 1:00 PAUSE – slut
+
+# Kalibrering 6 min (stærk, kort tid)
+// Mindst muligt: to niveauer, samme rate. Kør først i Nordic Strong (skærmoptagelse), derefter i vores app efter 5 min hvile.
+// Hold raten ved metronomen (F35). M10: så hårdt du kan holde 1:30. Lad svinghjulet løbe frit ud i pauserne.
+1:00 Opvarmning DS M5 F35
+0:30 PAUSE – start optagelse
+1:30 DS M7 F35
+1:00 PAUSE
+1:30 DS M10 F35 hårdt
+0:30 PAUSE – slut
+
+# Kalibrering 8 min
+// Tre niveauer ved samme rate (F35) – dækker lav, middel og høj modstand. Samme indsats i NS og i vores app.
+// Lad svinghjulet løbe frit ud i pauserne – brems det ikke.
+1:00 Opvarmning DS M3 F35
+0:30 PAUSE – start optagelse
+1:30 DS M5 F35
+0:45 PAUSE
+1:30 DS M7 F35
+0:45 PAUSE
+1:30 DS M10 F35 hårdt
+0:30 PAUSE – slut
+
+# Kalibrering 12 min
+// Som v3, men kortere: M3 (moderat) og M7 køres også ved høj rate (F50). M3 F50 er det niveau, hvor NS og vores app afviger mest.
+// M3-serierne: moderat indsats. M10-serierne: så hårdt du kan holde 1:30. Lad svinghjulet løbe frit ud i pauserne.
+1:00 Opvarmning DS M3 F35
+0:30 PAUSE – start optagelse
+1:30 DS M3 F35 moderat
+0:45 PAUSE
+1:30 DS M6 F35
+0:45 PAUSE
+1:30 DS M10 F35 hårdt
+0:45 PAUSE
+1:30 DS M3 F50 moderat
+0:45 PAUSE
+1:30 DS M7 F50
+0:30 PAUSE – slut
