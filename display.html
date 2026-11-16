@@ -128,7 +128,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.13</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.14</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -362,11 +362,12 @@ try{fetch('programmer.txt',{cache:'no-cache'}).then(r=>r.ok?r.text():null).then(
   if(t&&parsePrograms(t).length){try{localStorage.setItem('nsd_progtxt',t)}catch(e){}if(T.running||T.elapsed()>0)return;loadPrograms();buildProgSel()}}).catch(()=>{})}catch(e){}
 const PG={i:0,t0:0,d0:0,done:false};
 function curProg(){return PROGS[S.prog]||null}
-function progReset(){PG.i=0;PG.t0=0;PG.d0=0;PG.done=false;applyStepLevel()}
+function progReset(){PG.i=0;PG.t0=0;PG.d0=0;PG.done=false;PG.fin=null;applyStepLevel()}
 function applyStepLevel(){const p=curProg();if(!p||S.tmode!=='prog')return;const st=p.steps[PG.i];if(st&&/^\d+$/.test(st.M)){S.level=+st.M;buildLevels()}}
 function progAdvance(manual){
   const p=curProg();if(!p)return;
   const st=p.steps[PG.i],el=T.elapsed();
+  if(st&&st.d!=null&&!manual)PG.fin={g:st.d,t:el-PG.t0};
   PG.t0=(!manual&&st&&st.t!=null)?PG.t0+st.t:el;PG.d0=session.dist;PG.i++;
   if(PG.i>=p.steps.length){PG.done=true;PG.i=p.steps.length-1;T.finished=true;pause();beep(880,0.7);saveSession(true);return}
   const nx=p.steps[PG.i];beep(nx.pause?660:1100,0.35);applyStepLevel();
@@ -922,6 +923,11 @@ function livePayload(){
   try{if(dev&&dev.gatt&&dev.gatt.connected){const m=(S.known||{})[dev.id];if(m)o.m=String(m).slice(0,20)}}catch(e){}
   if(S.liveHR){const b=hrNow();if(b){o.hr=b;o.z=hrZone()}}
   if(S.tmode==='prog'){const g=progState();if(g){o.pn=String(g.name).slice(0,30);o.st=String(g.text).slice(0,60);o.pp=g.pos;if(g.isTime&&g.st.t!=null)o.sr=Math.round(g.main)}}
+  // distance race: a distance goal, or a distance step in a program (e.g. the 5000 m test)
+  if(S.tmode==='dist'&&S.tdist>0){o.g=S.tdist;o.gd=Math.round(Math.min(S.tdist,session.dist));o.gt=Math.round(el);o.f=T.finished?1:0}
+  else if(S.tmode==='prog'){const p=curProg(),st=p&&p.steps[PG.i];
+    if(PG.fin){o.g=PG.fin.g;o.gd=PG.fin.g;o.gt=Math.round(PG.fin.t);o.f=1}
+    else if(st&&st.d!=null&&!PG.done){o.g=st.d;o.gd=Math.round(Math.max(0,session.dist-PG.d0));o.gt=Math.round(Math.max(0,el-PG.t0));o.f=0}}
   return o;
 }
 function liveSend(){

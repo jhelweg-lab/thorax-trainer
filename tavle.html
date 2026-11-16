@@ -33,9 +33,18 @@ header{display:flex;align-items:center;gap:1.5vw;height:9vh;flex:none}
 #head .srt{color:var(--acc)}
 #rows{position:relative;flex:1;min-height:0}
 .row{position:absolute;left:0;right:0;top:0;height:var(--rh);padding:calc(var(--rh)*.06) 0;transition:transform .7s cubic-bezier(.2,.8,.2,1),opacity .5s}
-.row .in{height:100%;background:var(--row);border-radius:calc(var(--rh)*.14);padding:0 1.2vw;border-left:calc(var(--rh)*.09) solid transparent}
-.row:nth-child(even) .in{background:var(--row2)}
-.row.first .in{border-left-color:var(--acc)}
+.row .box{position:relative;height:100%;background:var(--row);border-radius:calc(var(--rh)*.14);overflow:hidden;border-left:calc(var(--rh)*.09) solid transparent}
+.row.alt .box{background:var(--row2)}
+.row.first .box{border-left-color:var(--acc)}
+.row .in{position:relative;height:100%;padding:0 1.2vw}
+.lane{position:absolute;inset:0;pointer-events:none}
+.lane i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(255,210,63,.02),rgba(255,210,63,.13));border-right:calc(var(--rh)*.035) solid rgba(255,210,63,.32);transition:width 1.2s linear,opacity .4s;opacity:0}
+.lane i.on{opacity:1}
+.row.first .lane i{background:linear-gradient(90deg,rgba(255,210,63,.04),rgba(255,210,63,.22));border-right-color:var(--acc)}
+.row.fin .lane i{background:linear-gradient(90deg,rgba(61,220,132,.05),rgba(61,220,132,.2));border-right-color:var(--ok)}
+.lane b{position:absolute;right:0;top:0;bottom:0;width:calc(var(--rh)*.12);display:none;background:repeating-linear-gradient(0deg,#fff 0 calc(var(--rh)*.12),#111 calc(var(--rh)*.12) calc(var(--rh)*.24));opacity:.35}
+.race .lane b{display:block}
+.v.fin{color:var(--ok)!important}
 .row.stale{opacity:.38}
 .row.idle .v{color:var(--mut)}
 .rk{font-size:calc(var(--rh)*.5);color:var(--mut)}
@@ -76,6 +85,7 @@ footer b{color:var(--fg)}
   .nm b{font-size:min(calc(var(--rh)*.3),4.6vw)}.nm span{font-size:min(calc(var(--rh)*.19),3vw)}
   .v,.c.sm .v{font-size:min(calc(var(--rh)*.46),7.4vw)}
   .hr{font-size:min(calc(var(--rh)*.38),6vw)}
+  .v.fin{font-size:min(calc(var(--rh)*.32),5.2vw)!important}
   footer{font-size:3vw}
 }
 </style>
@@ -114,7 +124,7 @@ const LIVE_W='https://thorax-live.jhelweg.workers.dev';
 const $=id=>document.getElementById(id);
 const q=new URLSearchParams(location.search);
 const clean=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,20);
-const DEMO=q.get('demo')==='1';
+const RACE=q.get('demo')==='race',DEMO=q.get('demo')==='1'||RACE;
 const ROOM=DEMO?'DEMO':clean(q.get('rum')||q.get('room'));
 const BASE=(q.get('w')||LIVE_W).replace(/\/+$/,'');
 let SORT=['d','w','aw'].includes(q.get('sort'))?q.get('sort'):'d';
@@ -145,13 +155,16 @@ function ingest(list,serverNow){
   const ids=new Set(list.map(x=>x.id));
   P.forEach((o,id)=>{if(!ids.has(id)&&t-o.seen>90000)P.delete(id)});
 }
+let polling=false;
 async function poll(){
+  if(polling)return;polling=true;
   try{
     const ac=new AbortController(),h=setTimeout(()=>ac.abort(),5000);
     const r=await fetch(BASE+'/room/'+ROOM,{cache:'no-store',signal:ac.signal});clearTimeout(h);
     if(!r.ok)throw new Error(r.status);
     const j=await r.json();ingest(j.p||[],j.now||Date.now());netOk=true;lastOk=Date.now();
   }catch(e){netOk=false}
+  polling=false;
 }
 
 /* ---------- demo ---------- */
@@ -164,6 +177,13 @@ function demoTick(dt){
   const T0=Date.now()/1000,steps=[['DS M5 (alt 6) · F40',180],['PAUSE',60],['DS M5 (alt 6) · F50',180],['PAUSE',60]];
   const tot=steps.reduce((a,s)=>a+s[1],0);let ph=(DM[0].t)%tot,si=0;while(ph>=steps[si][1]){ph-=steps[si][1];si++}
   const rest=steps[si][0]==='PAUSE';
+  if(RACE){DM.forEach((p,i)=>{
+      if(p.fin){P.set(p.id,{d:p.last,ts:Date.now(),seen:Date.now()});return}
+      p.t+=dt;const w=Math.max(30,p.base+25+10*Math.sin(T0/9+p.ph)+6*Math.sin(T0/2.3+i));p.E+=w*dt;p.mw=Math.max(p.mw,w);p.d+=0.299*Math.pow(w,0.61)*dt;
+      if(p.d>=5000){p.d=5000;p.fin=true}
+      const d={n:p.n,m:p.m,r:p.fin?0:1,w:p.fin?0:Math.round(w),aw:Math.round(p.E/p.t),mw:Math.round(p.mw),s:p.fin?0:Math.round(42+4*Math.sin(T0/5+p.ph)),d:Math.round(p.d),t:Math.round(p.t),g:5000,gd:Math.round(p.d),gt:Math.round(p.t),f:p.fin?1:0};
+      if(p.hasHR){const hr=Math.round(p.hrb+22+5*Math.sin(T0/11+p.ph));d.hr=hr;const x=hr/185;d.z=x>=.9?5:x>=.8?4:x>=.7?3:x>=.6?2:x>=.5?1:0}
+      p.last=d;P.set(p.id,{d,ts:Date.now(),seen:Date.now()})});return}
   DM.forEach((p,i)=>{
     p.t+=dt;
     const w=rest?Math.max(0,8+6*Math.sin(T0/3+p.ph)):Math.max(20,p.base+14*Math.sin(T0/7+p.ph)+8*Math.sin(T0/2.3+i));
@@ -183,28 +203,42 @@ function val(o,k){const d=o.d;return k==='d'?(d.d||0):k==='w'?(o.stale||!d.r?-1:
 function render(){
   const now=Date.now(),list=[];
   P.forEach((o,id)=>{o.id=id;o.stale=now-o.seen>9000;list.push(o)});
-  list.sort((a,b)=>val(b,SORT)-val(a,SORT)||(b.d.d||0)-(a.d.d||0)||String(a.d.n).localeCompare(String(b.d.n),'da'));
+  // race mode: at least half of the participants have the same distance goal (distance goal, or a distance step such as the 5000 m test)
+  const gc={};let nLive=0;list.forEach(o=>{if(o.stale)return;nLive++;if(o.d.g>0)gc[o.d.g]=(gc[o.d.g]||0)+1});
+  const G=+(Object.keys(gc).sort((a,b)=>gc[b]-gc[a])[0]||0),race=G>0&&gc[G]>=Math.max(1,nLive/2);
+  list.forEach(o=>{o.rc=race&&o.d.g===G;o.gd=o.rc?Math.min(G,o.d.gd||0):0;o.fin=o.rc&&!!o.d.f});
+  const byName=(a,b)=>String(a.d.n).localeCompare(String(b.d.n),'da');
+  if(race&&SORT==='d')list.sort((a,b)=>(b.rc-a.rc)||(b.fin-a.fin)||(a.fin&&b.fin?(a.d.gt||0)-(b.d.gt||0):0)||(b.gd-a.gd)||(b.d.d||0)-(a.d.d||0)||byName(a,b));
+  else list.sort((a,b)=>val(b,SORT)-val(a,SORT)||(b.d.d||0)-(a.d.d||0)||byName(a,b));
+  rowsEl.classList.toggle('race',race&&SORT==='d');
   const n=list.length,H=rowsEl.clientHeight,rh=Math.max(34,Math.min(H/Math.max(n,5),H*0.2));
   rowsEl.style.setProperty('--rh',rh+'px');
   $('empty').style.display=n?'none':'flex';
   if(!n)$('empty').innerHTML='<b>Venter på deltagere…</b><span>I appen: ⚙ → Live-tavle → slå til og skriv rumkoden <b style="font-size:1em;color:var(--acc)">'+esc(ROOM)+'</b></span>';
   const maxW=Math.max(1,...list.map(o=>o.stale||!o.d.r?0:(o.d.w||0)));
-  const lead=n?val(list[0],SORT):0;
+  const lead=n?val(list[0],SORT):0,leadD=Math.max(1,...list.map(o=>o.d.d||0));
   els.forEach((el,id)=>{if(!P.has(id)){el.remove();els.delete(id)}});
   list.forEach((o,i)=>{
     const d=o.d;let el=els.get(o.id);
-    if(!el){el=document.createElement('div');el.className='row';el.innerHTML='<div class="in grid"></div>';rowsEl.appendChild(el);els.set(o.id,el)}
+    if(!el){el=document.createElement('div');el.className='row';el.innerHTML='<div class="box"><div class="lane"><i></i><b></b></div><div class="in grid"></div></div>';rowsEl.appendChild(el);els.set(o.id,el)}
     const running=!!d.r&&!o.stale,idle=!d.r;
-    el.className='row'+(i===0&&lead>0?' first':'')+(o.stale?' stale':'')+(idle?' idle':'');
+    const raceRow=race&&SORT==='d';
+    el.className='row'+(i%2?' alt':'')+(i===0&&(raceRow?(o.gd>0||o.fin):lead>0)?' first':'')+(o.stale?' stale':'')+(idle&&!o.fin?' idle':'')+(o.fin&&raceRow?' fin':'');
+    {const ln=el.querySelector('.lane i'),pc=SORT!=='d'?0:raceRow?(o.rc?100*o.gd/G:0):100*(d.d||0)/leadD;
+      ln.style.width=Math.max(0,Math.min(100,pc)).toFixed(1)+'%';ln.className=pc>0?'on':''}
     el.style.transform='translateY('+(i*rh)+'px)';el.style.zIndex=String(100-i);
     const t=(d.t||0)+(running?Math.min(4,(now-o.seen)/1000):0);
-    const status=o.stale?'intet signal':idle?((d.t||0)>0?'pause':'klar'):'';
-    const gap=(SORT==='d'&&i>0&&lead>0)?'−'+fmtD(lead-(d.d||0))+' m':'';
+    const status=o.stale?'intet signal':(o.fin&&raceRow)?'i mål':idle?((d.t||0)>0?'pause':'klar'):'';
+    const gap=raceRow?'':(SORT==='d'&&i>0&&lead>0)?'−'+Math.round(lead-(d.d||0))+' m':'';
+    let dcell;
+    if(raceRow&&o.fin)dcell='<span class="v num fin">✓ '+mmss(d.gt||0)+'</span><div class="sub">'+G+' m</div>';
+    else if(raceRow&&o.rc)dcell='<span class="v num">'+Math.round(o.gd)+'</span><span class="u">m</span><div class="sub">'+(o.gd>150&&(d.gt||0)>20?'slut ≈ '+mmss((d.gt||0)/o.gd*G):'')+'</div>';
+    else dcell='<span class="v num">'+fmtD(d.d||0)+'</span><span class="u">'+((d.d||0)>=10000?'km':'m')+'</span><div class="sub">'+gap+'</div>';
     const hr=d.hr?'<span class="hr num z'+(d.z||0)+'">'+d.hr+'</span>':'<span class="v num" style="color:var(--mut)">–</span>';
-    el.firstChild.innerHTML=
+    el.querySelector('.in').innerHTML=
       '<div class="rk num">'+(i+1)+'</div>'+
       '<div class="nm"><b>'+esc(d.n||'Uden navn')+'</b><span>'+esc([d.m,status].filter(Boolean).join(' · ')||' ')+'</span></div>'+
-      '<div class="c'+(SORT==='d'?' srt':'')+'"><span class="v num">'+fmtD(d.d||0)+'</span><span class="u">'+((d.d||0)>=10000?'km':'m')+'</span><div class="sub">'+gap+'</div></div>'+
+      '<div class="c'+(SORT==='d'?' srt':'')+'">'+dcell+'</div>'+
       '<div class="c'+(SORT==='w'?' srt':'')+'"><span class="v num">'+(o.stale?'–':(d.w||0))+'</span><span class="u">W</span><div class="bar"><i style="width:'+(running?Math.round(100*(d.w||0)/maxW):0)+'%"></i></div></div>'+
       '<div class="c x sm'+(SORT==='aw'?' srt':'')+'"><span class="v num">'+(d.aw!=null?d.aw:'–')+'</span><span class="u">W</span><div class="sub">'+(d.mw?'maks '+d.mw:'')+'</div></div>'+
       '<div class="c y sm"><span class="v num">'+(running&&d.s?d.s:'–')+'</span><div class="sub"></div></div>'+
@@ -217,7 +251,7 @@ function render(){
   if(top){const g=cnt[top],srs=g.filter(o=>o.d.sr!=null).map(o=>o.d.sr-Math.min(4,(now-o.seen)/1000));
     se.className=/^pause/i.test(top)?'rest':'';
     se.innerHTML=esc(top)+(srs.length?'<span class="cd num">'+mmss(Math.max(0,srs.sort((a,b)=>a-b)[Math.floor(srs.length/2)]))+'</span>':'');
-  }else se.textContent='';
+  }else if(race&&SORT==='d'){se.className='';se.textContent='Løb · '+G+' m'}else se.textContent='';
   // header / footer
   document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',b.dataset.s===SORT));
   document.querySelectorAll('#head [data-k]').forEach(e=>e.classList.toggle('srt',e.dataset.k===SORT));
@@ -237,7 +271,7 @@ let wl=null;async function wake(){try{if('wakeLock'in navigator&&!document.hidde
 wake();document.addEventListener('visibilitychange',wake);document.addEventListener('click',wake);
 window.addEventListener('resize',render);
 
-if(DEMO){demoInit();for(let i=0;i<600;i++)demoTick(1);setInterval(()=>demoTick(1),1000)}
+if(DEMO){demoInit();for(let i=0;i<(RACE?690:600);i++)demoTick(1);setInterval(()=>demoTick(1),1000)}
 else{poll();setInterval(poll,2000)}
 render();setInterval(render,500);
 })();
