@@ -128,7 +128,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.12</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.13</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -213,6 +213,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
 'use strict';
 const SVC_MAIN='902958ce-5516-459d-91a3-40e0e73ac884', SVC_UART='00060000-f8ce-11e4-abf4-0002a5d5c51b';
 const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.000836,wA:13.6,wB:[0.083,0.083,0.083,0.11,0.14,0.155,0.22,0.254,0.328,0.375],wv:7,dC:0.299,dN:0.610,
@@ -256,7 +257,7 @@ function onSample(raw,t){ // t in seconds
   const sPrev=P.s;
   P.s+=0.5*(x-P.s);
   // --- live drag (brake) estimate from free deceleration in recovery ---
-  if(dt>0&&dt<0.15){const ds=(P.s-sPrev)/dt;DR.run=ds<0?DR.run+1:0;
+  if(dt>=0.02&&dt<0.15){const ds=(P.s-sPrev)/dt;DR.run=ds<0?DR.run+1:0;
     if(DR.run>=2&&P.s>100){DR.cur.push((-ds-S.wA)/P.s);if(DR.cur.length>60)DR.cur.shift()}}
   P.m+=Math.min(1,dt/2.0)*(x-P.m);
   P.disp+=Math.min(1,dt/0.5)*(x-P.disp);
@@ -351,12 +352,14 @@ function loadPrograms(){
   let base=PROG_DEFAULT;try{const c=localStorage.getItem('nsd_progtxt');if(c)base=c}catch(e){}
   PROGS=parsePrograms(base);
   if(S.pcustom){const c=parsePrograms(S.pcustom);c.forEach(p=>p.name='★ '+p.name);PROGS=PROGS.concat(c)}
+  if(S.progName){const i=PROGS.findIndex(p=>p.name===S.progName);if(i>=0)S.prog=i}
   if(S.prog>=PROGS.length)S.prog=0;
+  if(PROGS[S.prog])S.progName=PROGS[S.prog].name;
 }
 loadPrograms();
 // try to fetch an updated programmer.txt from the site (works offline with last copy)
 try{fetch('programmer.txt',{cache:'no-cache'}).then(r=>r.ok?r.text():null).then(t=>{
-  if(t&&parsePrograms(t).length){try{localStorage.setItem('nsd_progtxt',t)}catch(e){}loadPrograms();buildProgSel()}}).catch(()=>{})}catch(e){}
+  if(t&&parsePrograms(t).length){try{localStorage.setItem('nsd_progtxt',t)}catch(e){}if(T.running||T.elapsed()>0)return;loadPrograms();buildProgSel()}}).catch(()=>{})}catch(e){}
 const PG={i:0,t0:0,d0:0,done:false};
 function curProg(){return PROGS[S.prog]||null}
 function progReset(){PG.i=0;PG.t0=0;PG.d0=0;PG.done=false;applyStepLevel()}
@@ -444,10 +447,10 @@ function tick(){
   if(T.running&&!audioWarned&&(S.metro||S.beep)&&['prog','int','down'].includes(S.tmode)&&(!actx||actx.state!=='running')){audioWarned=true;
     toast('Ingen lyd endnu<br><span style="font-size:.5em">Tryk én gang på skærmen for at slå lyd til.<br>Tjek også at iPad/iPhone ikke står på lydløs.</span>')}
   const nowT=performance.now(),gap=nowT-lastTickT;lastTickT=nowT;
-  if(T.running&&gap>8000){T.acc-=gap;if(T.acc<0)T.acc=0} // app was suspended (screen locked/background): don't count that time
+  if(T.running&&gap>8000){T.start=Math.min(nowT,T.start+gap)} // app was suspended (screen locked/background): don't count that time
   if(T.running&&!T.finished&&['up','down','dist'].includes(S.tmode)&&S.autoStart){
-    const ls=P.strokes.length?P.strokes[P.strokes.length-1]:null,now=nowT/1000;
-    if(ls!=null&&now-ls>30){T.acc-=Math.max(0,(now-ls-5))*1000;pause();T.autoPaused=true;toast('Auto-pause<br><span style="font-size:.5em">Træk for at fortsætte</span>')}}
+    const ls=P.strokes.length?P.strokes[P.strokes.length-1]:null,now=nowT/1000,ref=Math.max(ls==null?0:ls,T.start/1000); // idle is counted from the last stroke or from when the clock was (re)started
+    if(ls!=null&&now-ref>30){T.acc-=Math.max(0,(now-ref-5))*1000;pause();if(T.acc<0)T.acc=0;T.autoPaused=true;toast('Auto-pause<br><span style="font-size:.5em">Træk for at fortsætte</span>')}}
   if(!T.running)return;
   if(S.tmode==='prog'){progTick();return}
   if(S.tmode==='dist'){if(!T.finished&&S.tdist>0&&session.dist>=S.tdist){T.finished=true;pause();beep(880,0.7);saveSession(true)}return}
@@ -466,7 +469,7 @@ function startT(){
   wake();
 }
 function pause(){if(!T.running)return;T.acc+=performance.now()-T.start;T.running=false;$('bStart').textContent='Start';$('bStart').className='pri';saveSession(false)}
-function resetT(){pause();T.armed=false;$('bStart').textContent='Start';W.ring=[];T.autoPaused=false;T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
+function resetT(){pause();LOG=[];lastLog=0;cdLast='';try{$('csv').value=''}catch(e){}T.armed=false;$('bStart').textContent='Start';W.ring=[];T.autoPaused=false;T.sid=null;T.announced=false;T.acc=0;W.sumE=0;W.sumT=0;T.finished=false;progReset();T.lastKey='';HR.sum=0;HR.n=0;HR.max=0;session={dist:0,strokes:0,speedSum:0,speedN:0,firstStrokeT:null}}
 $('bStart').onclick=()=>{
   if(T.running){pause();return}
   if(T.elapsed()===0&&!T.finished&&!T.armed){ // arm: the clock starts on the first stroke
@@ -474,7 +477,7 @@ $('bStart').onclick=()=>{
     try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}
     wake();return}
   T.armed=false;startT()};
-$('bReset').onclick=()=>{saveSession(true);resetT();LOG=[];lastLog=0;$('csv').value=''};
+$('bReset').onclick=()=>{saveSession(true);resetT()};
 let wl=null;async function wake(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
 
 /* ---------- fields ---------- */
@@ -627,8 +630,8 @@ function buildHist(){
   if(!ix.length){box.innerHTML='<p class="note">Ingen gemte pas endnu. Et pas gemmes løbende og automatisk, når det har varet mindst 1 minut og haft 20 slag – også hvis du blot trykker Pause eller lukker appen.</p>';return}
   ix.forEach(x=>{const d=document.createElement('div');d.style.cssText='border-top:1px solid var(--line);padding:10px 0';
     const has=(()=>{try{return localStorage.getItem('nsd_s_'+x.id)!=null}catch(e){return false}})();
-    d.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+fmtDate(x.date)+'</b><span style="color:var(--mut)">'+(x.user||'')+'</span></div>'+
-      '<div style="color:var(--mut);margin:2px 0 6px">'+x.name+'</div>'+
+    d.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+fmtDate(x.date)+'</b><span style="color:var(--mut)">'+esc(x.user||'')+'</span></div>'+
+      '<div style="color:var(--mut);margin:2px 0 6px">'+esc(x.name)+'</div>'+
       (()=>{const e=sumExtra(x),c=(l,v)=>'<div><div style="color:var(--mut);font-size:12px">'+l+'</div><div style="font-size:20px;font-weight:700">'+v+'</div></div>';
         return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px 12px">'+
         c('Tid',mmss(x.dur))+c('Distance',(x.dist/1000).toFixed(2)+' km')+c('Gns tid/1000 m',e.pace??'—')+c('Gns hastighed',(e.kmh??'—')+' km/t')+
@@ -671,7 +674,7 @@ function logRow(){
   const w=wattNow();
   LOG.push([el.toFixed(1),Math.round(spm(performance.now()/1000)),Math.round(P.disp),Math.round(w),session.strokes,session.dist.toFixed(1),(S.tmode==='prog'?('"'+timerState().phase.replace(/"/g,'')+'"'):timerState().phase.split(' ')[0]),S.level,hrNow()||'',DR.b!=null?DR.b.toFixed(3):''].join(','));
   if(LOG.length>20000)LOG.shift();
-  $('csv').value=HDR+LOG.join('\n');
+  if($('set').classList.contains('open'))$('csv').value=HDR+LOG.join('\n');
 }
 
 /* ---------- settings UI ---------- */
@@ -708,7 +711,7 @@ function buildProgSel(){
   const ps=$('psel');if(!ps)return;ps.innerHTML='';
   PROGS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;
     const tot=p.steps.reduce((a,s)=>a+(s.t||0),0);o.textContent=p.name+' ('+p.steps.length+' trin, '+mmss(tot)+(p.steps.some(s=>s.t==null)?' +':'')+')';ps.appendChild(o)});
-  ps.value=String(S.prog);ps.onchange=()=>{S.prog=+ps.value;save();progReset()};
+  ps.value=String(S.prog);ps.onchange=()=>{S.prog=+ps.value;S.progName=PROGS[S.prog]?PROGS[S.prog].name:'';save();progReset()};
 }
 function buildLevels(){
   const c=$('lvl');c.innerHTML='';c.style.display=S.showLvl?'flex':'none';if(!S.showLvl){S.autoM=true;return}
@@ -719,19 +722,40 @@ function buildLevels(){
     b.onclick=()=>{S.level=i;S.autoM=false;save();buildLevels()};c.appendChild(b)}
 }
 setInterval(()=>{if(S.autoM)buildLevels()},2000);
-$('bSet').onclick=()=>$('set').classList.add('open');
+$('bSet').onclick=()=>{$('set').classList.add('open');$('csv').value=LOG.length?HDR+LOG.join('\n'):''};
 $('bClose').onclick=()=>{$('set').classList.remove('open');resetNeeded()};
 function resetNeeded(){/* timer type may have changed */if(!T.running){T.finished=false}}
-$('bCopy').onclick=async()=>{const ta=$('csv');ta.select();try{await navigator.clipboard.writeText(ta.value)}catch(e){document.execCommand('copy')}};
+$('bCopy').onclick=async()=>{const ta=$('csv');ta.value=LOG.length?HDR+LOG.join('\n'):'';ta.select();try{await navigator.clipboard.writeText(ta.value)}catch(e){document.execCommand('copy')}};
 $('bClr').onclick=()=>{LOG=[];$('csv').value=''};
 
 /* ---------- Bluetooth ---------- */
 let dev=null,demoT=null;
 function setStatus(t,ok){const s=$('status');s.textContent=t;s.className=ok?'ok':''}
 function machineName(raw){return (raw||'').replace(/\0/g,'').replace(/_+/g,' ').trim()}
-async function attach(d,label){
-  dev=d;
-  dev.addEventListener('gattserverdisconnected',()=>{setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind'});
+const BT={manualOff:false,reconn:false,attachT:0,ch:null,devs:new WeakSet(),chs:new WeakSet()};
+function machLost(d){
+  if(d!==dev)return;
+  setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind';
+  if(BT.manualOff||BT.reconn||performance.now()-BT.attachT<12000)return;
+  machReconnect(d);
+}
+// the machine dropped out by itself: try to get it back without the user having to do anything
+async function machReconnect(d){
+  BT.reconn=true;const label=(S.known||{})[d.id];
+  try{
+    for(let i=1;i<=8;i++){
+      if(BT.manualOff||dev!==d)return;
+      setStatus('Forbindelse tabt – genforbinder ('+i+'/8)…',false);
+      try{await withTimeout(attach(d,label,true),8000,'intet svar');return}
+      catch(e){try{d.gatt&&d.gatt.connected&&d.gatt.disconnect()}catch(_){}}
+      await new Promise(r=>setTimeout(r,Math.min(1500*i,6000)));
+    }
+    if(dev===d&&!(d.gatt&&d.gatt.connected)){setStatus('Forbindelse tabt – tryk Forbind',false);$('bConn').textContent='Forbind'}
+  }finally{BT.reconn=false}
+}
+async function attach(d,label,quiet){
+  dev=d;BT.manualOff=false;if(!quiet)BT.attachT=performance.now();
+  if(!BT.devs.has(d)){BT.devs.add(d);d.addEventListener('gattserverdisconnected',()=>machLost(d))}
   setStatus('Forbinder til '+(label||'maskine')+'…');
   const srv=await dev.gatt.connect();
   const svc=await srv.getPrimaryService(SVC_MAIN);
@@ -742,14 +766,17 @@ async function attach(d,label){
   if(nm){S.known=S.known||{};S.known[dev.id]=nm;save();buildMachines()}
   const ch=chars.find(c=>c.uuid.toLowerCase().startsWith('512387b1'));
   if(!ch)throw new Error('Datakarakteristik 512387B1 ikke fundet');
-  ch.addEventListener('characteristicvaluechanged',e=>{
+  if(!BT.chs.has(ch)){BT.chs.add(ch);ch.addEventListener('characteristicvaluechanged',e=>{
+    if(e.target!==BT.ch)return; // only the newest connection feeds the display (no double counting)
     const dv=e.target.value;if(dv.byteLength<2)return;
     onSample(dv.getUint16(0,true),performance.now()/1000);
-  });
+  })}
+  BT.ch=ch;
   await ch.startNotifications();
   const shown=nm||dev.name||'enhed';const idp=(dev.id||'').slice(0,4).toUpperCase();
   setStatus('Forbundet: '+shown+' ('+idp+')',true);$('bConn').textContent='Afbryd';
-  toast('Forbundet til<br><b>'+shown+'</b><br><span style="font-size:.45em;color:#9aa">Bluetooth-kode '+idp+'…</span><br><span style="font-size:.5em">Træk i grebene – hastigheden skal bevæge sig</span>');
+  if(quiet){toast('Forbindelsen er tilbage');return}
+  toast('Forbundet til<br><b>'+esc(shown)+'</b><br><span style="font-size:.45em;color:#9aa">Bluetooth-kode '+idp+'…</span><br><span style="font-size:.5em">Træk i grebene – hastigheden skal bevæge sig</span>');
 }
 async function connect(){
   if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig – brug Bluefy');return}
@@ -764,14 +791,14 @@ async function connect(){
 // remembered machines (Bluefy: "Tillad baggrundsforbindelser" must be on)
 async function buildMachines(){
   const box=$('mlist');if(!box)return;box.innerHTML='';
-  const kn=S.known||{},ref=Object.keys(kn).sort((a,b)=>kn[a].localeCompare(kn[b],'da',{numeric:true})).map(id=>'<div style="font-size:18px;margin:4px 0"><b>'+kn[id]+'</b> = kode <b>'+id.slice(0,4).toUpperCase()+'</b>…</div>').join('');
+  const kn=S.known||{},ref=Object.keys(kn).sort((a,b)=>kn[a].localeCompare(kn[b],'da',{numeric:true})).map(id=>'<div style="font-size:18px;margin:4px 0"><b>'+esc(kn[id])+'</b> = kode <b>'+id.slice(0,4).toUpperCase()+'</b>…</div>').join('');
   if(!navigator.bluetooth||!navigator.bluetooth.getDevices){box.innerHTML=(ref?'<p class="note">Find koden i Bluetooth-listen under "Forbind":</p>'+ref:'<p class="note">Ingen maskiner kendt endnu – brug Forbind.</p>');return}
   let list=[];try{list=await navigator.bluetooth.getDevices()}catch(e){}
   const known=S.known||{};
   list=list.filter(d=>known[d.id]).sort((a,b)=>known[a.id].localeCompare(known[b.id],'da',{numeric:true}));
   if(!list.length){box.innerHTML='<p class="note">Ingen husket endnu. Forbind én gang til hver maskine med "Forbind" (med "Tillad baggrundsforbindelser" slået til), så dukker de op her med navn.</p>';return}
-  list.forEach(d=>{const b=document.createElement('button');b.innerHTML=known[d.id]+' <span style="color:#8a97a3;font-size:.8em">'+(d.id||'').slice(0,4).toUpperCase()+'</span>';b.style.margin='4px';
-    b.onclick=async()=>{closeMachines();try{if(dev&&dev.gatt&&dev.gatt.connected)dev.gatt.disconnect();await connectKnown(d,known[d.id])}
+  list.forEach(d=>{const b=document.createElement('button');b.innerHTML=esc(known[d.id])+' <span style="color:#8a97a3;font-size:.8em">'+(d.id||'').slice(0,4).toUpperCase()+'</span>';b.style.margin='4px';
+    b.onclick=async()=>{closeMachines();try{BT.manualOff=true;if(dev&&dev.gatt&&dev.gatt.connected)dev.gatt.disconnect();await connectKnown(d,known[d.id])}
       catch(e){setStatus('Kunne ikke forbinde til '+known[d.id]+' ('+((e&&e.name)?e.name+': ':'')+((e&&e.message)||e)+')');toast('Kunne ikke forbinde til <b>'+known[d.id]+'</b><br><span style="font-size:.45em">Træk i grebene og prøv igen. Virker det ikke, så brug Forbind og vælg koden '+(d.id||'').slice(0,4).toUpperCase()+'… i listen.</span>')}};
     box.appendChild(b)});
 }
@@ -800,8 +827,8 @@ function closeMachines(){$('mpanel').style.display='none'}
 function toast(html){const t=$('toast');t.innerHTML='<div>'+html+'</div>';t.style.display='flex';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
 $('bMach').onclick=openMachines;$('mClose').onclick=closeMachines;
 $('bConn').onclick=()=>{
-  if(dev&&dev.gatt&&dev.gatt.connected){dev.gatt.disconnect();return}
-  connect();
+  if(dev&&dev.gatt&&dev.gatt.connected){BT.manualOff=true;dev.gatt.disconnect();return}
+  BT.manualOff=true;connect();
 };
 
 async function hrSubscribe(){
@@ -817,12 +844,15 @@ async function hrSubscribe(){
   $('bHR').textContent='♥ '+(HR.dev.name||'Puls');$('bHR').className='pri';
 }
 async function hrReconnect(){
-  if(HR.manualOff||!HR.dev)return;
-  for(let i=1;i<=10&&!HR.manualOff;i++){
-    $('bHR').textContent='♥ genforbinder…';
-    try{await hrSubscribe();return}catch(e){await new Promise(r=>setTimeout(r,Math.min(2000*i,8000)))}
-  }
-  $('bHR').textContent='♥ Puls';$('bHR').className='';
+  if(HR.manualOff||!HR.dev||HR.rec)return;
+  HR.rec=true;
+  try{
+    for(let i=1;i<=10&&!HR.manualOff;i++){
+      $('bHR').textContent='♥ genforbinder…';
+      try{await hrSubscribe();return}catch(e){await new Promise(r=>setTimeout(r,Math.min(2000*i,8000)))}
+    }
+    $('bHR').textContent='♥ Puls';$('bHR').className='';
+  }finally{HR.rec=false}
 }
 async function connectHR(){
   if(!navigator.bluetooth){setStatus('Web Bluetooth ikke tilgængelig');return}
@@ -830,8 +860,9 @@ async function connectHR(){
   try{
     HR.manualOff=false;
     HR.dev=await navigator.bluetooth.requestDevice({filters:[{services:['heart_rate']}]});
-    HR.dev.addEventListener('gattserverdisconnected',()=>{HR.bpm=0;$('bHR').className='';
-      if(HR.manualOff){$('bHR').textContent='♥ Puls'}else hrReconnect()});
+    HR.hooked=HR.hooked||new WeakSet();
+    if(!HR.hooked.has(HR.dev)){HR.hooked.add(HR.dev);const hd=HR.dev;hd.addEventListener('gattserverdisconnected',()=>{if(hd!==HR.dev)return;HR.bpm=0;$('bHR').className='';
+      if(HR.manualOff){$('bHR').textContent='♥ Puls'}else hrReconnect()})}
     await hrSubscribe();
   }catch(e){setStatus('Puls-fejl: '+((e&&e.name)?e.name+' ':'')+((e&&e.message)||String(e)))}
 }
@@ -850,7 +881,7 @@ $('bDemo').onclick=()=>{
   },60);
   $('bDemo').textContent='Stop demo';setStatus('Demo-signal (ikke maskinen)',true);
 };
-window.__test={livePayload:()=>livePayload(),HR,toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
+window.__test={pause,tick,LOGn:()=>LOG.length,BT,livePayload:()=>livePayload(),HR,toTCX,saveSession,histIndex,DR,estLevel,curB,W,wattNow,wattAvg,PG,PROGS:()=>PROGS,progState,progAdvance,parsePrograms,onSample,P,T,S,session,startT,resetT,render,spm};
 
 /* ---------- init ---------- */
 const FONTS={
@@ -917,7 +948,7 @@ if(!S.stW)S.stW=ST_W;if(!S.stId)S.stId=ST_ID;
 function stBase(){return (S.stW||'').trim().replace(/\/+$/,'')}
 function stRedirect(){return location.origin+location.pathname}
 function stShow(){const e=$('stStatus');if(!e)return;
-  if(S.st&&S.st.refresh)e.innerHTML='Forbundet til Strava'+(S.st.name?' som <b>'+S.st.name+'</b>':'')+'.';
+  if(S.st&&S.st.refresh)e.innerHTML='Forbundet til Strava'+(S.st.name?' som <b>'+esc(S.st.name)+'</b>':'')+'.';
   else e.textContent=(stBase()&&S.stId)?'Ikke forbundet til Strava.':'Strava er ikke sat op endnu (se Opsætning).'}
 async function stPost(path,body){const r=await fetch(stBase()+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error((d&&d.error)||('HTTP '+r.status));return d}
