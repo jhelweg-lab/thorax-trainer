@@ -37,14 +37,16 @@ header{display:flex;align-items:center;gap:1.5vw;height:9vh;flex:none}
 .row.alt .box{background:var(--row2)}
 .row.first .box{border-left-color:var(--acc)}
 .row .in{position:relative;height:100%;padding:0 1.2vw}
-.lane{position:absolute;inset:0;pointer-events:none}
-.lane i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(255,210,63,.02),rgba(255,210,63,.13));border-right:calc(var(--rh)*.035) solid rgba(255,210,63,.32);transition:width 1.2s linear,opacity .4s;opacity:0}
-.lane i.on{opacity:1}
-.row.first .lane i{background:linear-gradient(90deg,rgba(255,210,63,.04),rgba(255,210,63,.22));border-right-color:var(--acc)}
-.row.fin .lane i{background:linear-gradient(90deg,rgba(61,220,132,.05),rgba(61,220,132,.2));border-right-color:var(--ok)}
-.lane b{position:absolute;right:0;top:0;bottom:0;width:calc(var(--rh)*.12);display:none;background:repeating-linear-gradient(0deg,#fff 0 calc(var(--rh)*.12),#111 calc(var(--rh)*.12) calc(var(--rh)*.24));opacity:.35}
-.race .lane b{display:block}
 .v.fin{color:var(--ok)!important}
+.nm{display:flex;align-items:center;gap:1.2vw}
+.nmt{flex:0 0 47%;min-width:0}
+.trk{position:relative;flex:1;min-width:0;height:calc(var(--rh)*.26);background:rgba(255,255,255,.07);border-radius:calc(var(--rh)*.13);overflow:hidden}
+.trk i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:linear-gradient(90deg,#1a8f50,#3ddc84);box-shadow:0 0 calc(var(--rh)*.15) rgba(61,220,132,.35)}
+.row.first .trk i{background:linear-gradient(90deg,#3ddc84,#9cf5c2)}
+.row.stale .trk i,.row.idle .trk i{background:#5b6672;box-shadow:none}
+.row.fin .trk i{background:linear-gradient(90deg,#3ddc84,#c8ffe0)}
+.trk em{display:none;position:absolute;right:0;top:0;bottom:0;width:calc(var(--rh)*.26);background:repeating-conic-gradient(#fff 0 25%,#222 0 50%) 0 0/calc(var(--rh)*.13) calc(var(--rh)*.13);opacity:.75}
+.race .trk em{display:block}
 .row.stale{opacity:.38}
 .row.idle .v{color:var(--mut)}
 .rk{font-size:calc(var(--rh)*.5);color:var(--mut)}
@@ -86,6 +88,7 @@ footer b{color:var(--fg)}
   .v,.c.sm .v{font-size:min(calc(var(--rh)*.46),7.4vw)}
   .hr{font-size:min(calc(var(--rh)*.38),6vw)}
   .v.fin{font-size:min(calc(var(--rh)*.32),5.2vw)!important}
+  .nm{flex-direction:column;align-items:stretch;gap:0}.nmt{flex:none;width:100%}.trk{flex:none;height:6px;margin-top:4px}.trk em{width:6px}
   footer{font-size:3vw}
 }
 </style>
@@ -98,14 +101,14 @@ footer b{color:var(--fg)}
     <div id="right">
       <span id="net">INGEN FORBINDELSE</span>
       <div class="chips" id="chips">
-        <button data-s="d">Distance</button><button data-s="w">Watt</button><button data-s="aw">Gns watt</button>
+        <button data-s="d">Distance</button><button data-s="w">Watt</button><button data-s="av">Gns km/t</button>
       </div>
       <button id="fs" title="Fuld skærm">⛶</button>
       <div id="clock" class="num"></div>
     </div>
   </header>
   <div id="head" class="grid">
-    <div>#</div><div>Navn</div><div data-k="d">Distance</div><div data-k="w">Watt</div><div data-k="aw" class="x">Gns watt</div><div class="y">Slag/min</div><div>Puls</div><div class="x">Tid</div>
+    <div>#</div><div>Navn</div><div data-k="d">Distance</div><div data-k="w">Watt</div><div data-k="av" class="x">Hastighed</div><div class="y">Slag/min</div><div>Puls</div><div class="x">Tid</div>
   </div>
   <div id="rows"><div id="empty"></div></div>
   <footer><span id="sum"></span><span id="foot"></span></footer>
@@ -127,10 +130,14 @@ const clean=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,20);
 const RACE=q.get('demo')==='race',DEMO=q.get('demo')==='1'||RACE;
 const ROOM=DEMO?'DEMO':clean(q.get('rum')||q.get('room'));
 const BASE=(q.get('w')||LIVE_W).replace(/\/+$/,'');
-let SORT=['d','w','aw'].includes(q.get('sort'))?q.get('sort'):'d';
-try{const s=localStorage.getItem('tavle_sort');if(!q.get('sort')&&['d','w','aw'].includes(s))SORT=s}catch(e){}
+let SORT=['d','w','av'].includes(q.get('sort'))?q.get('sort'):'d';
+try{const s=localStorage.getItem('tavle_sort');if(!q.get('sort')&&['d','w','av'].includes(s))SORT=s}catch(e){}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const mmss=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
+// speed in km/h: sent by the app (2.15+); older apps: same formula as the app (v = 0.299·W^0.61 m/s)
+const kmh=d=>d.v!=null?+d.v:(d.w>0?0.299*Math.pow(d.w,0.61)*3.6:0);
+const avgKmh=d=>d.av!=null?+d.av:((d.t||0)>10?(d.d||0)/d.t*3.6:0);
+const fmtV=v=>v.toFixed(1).replace('.',',');
 const fmtD=m=>m>=10000?(m/1000).toFixed(2).replace('.',','):String(Math.round(m));
 
 if(!ROOM||ROOM.length<2){
@@ -199,7 +206,7 @@ function demoTick(dt){
 
 /* ---------- render ---------- */
 const rowsEl=$('rows'),els=new Map();
-function val(o,k){const d=o.d;return k==='d'?(d.d||0):k==='w'?(o.stale||!d.r?-1:(d.w||0)):(d.aw||0)}
+function val(o,k){const d=o.d;return k==='d'?(d.d||0):k==='w'?(o.stale||!d.r?-1:(d.w||0)):avgKmh(d)}
 function render(){
   const now=Date.now(),list=[];
   P.forEach((o,id)=>{o.id=id;o.stale=now-o.seen>9000;list.push(o)});
@@ -220,12 +227,11 @@ function render(){
   els.forEach((el,id)=>{if(!P.has(id)){el.remove();els.delete(id)}});
   list.forEach((o,i)=>{
     const d=o.d;let el=els.get(o.id);
-    if(!el){el=document.createElement('div');el.className='row';el.innerHTML='<div class="box"><div class="lane"><i></i><b></b></div><div class="in grid"></div></div>';rowsEl.appendChild(el);els.set(o.id,el)}
+    if(!el){el=document.createElement('div');el.className='row';el.innerHTML='<div class="box"><div class="in grid"></div></div>';rowsEl.appendChild(el);els.set(o.id,el)}
     const running=!!d.r&&!o.stale,idle=!d.r;
     const raceRow=race&&SORT==='d';
     el.className='row'+(i%2?' alt':'')+(i===0&&(raceRow?(o.gd>0||o.fin):lead>0)?' first':'')+(o.stale?' stale':'')+(idle&&!o.fin?' idle':'')+(o.fin&&raceRow?' fin':'');
-    {const ln=el.querySelector('.lane i'),pc=SORT!=='d'?0:raceRow?(o.rc?100*o.gd/G:0):100*(d.d||0)/leadD;
-      ln.style.width=Math.max(0,Math.min(100,pc)).toFixed(1)+'%';ln.className=pc>0?'on':''}
+    const pc=Math.max(0,Math.min(100,(race&&o.rc)?100*o.gd/G:100*(d.d||0)/leadD));
     el.style.transform='translateY('+(i*rh)+'px)';el.style.zIndex=String(100-i);
     const t=(d.t||0)+(running?Math.min(4,(now-o.seen)/1000):0);
     const status=o.stale?'intet signal':(o.fin&&raceRow)?'i mål':idle?((d.t||0)>0?'pause':'klar'):'';
@@ -237,10 +243,10 @@ function render(){
     const hr=d.hr?'<span class="hr num z'+(d.z||0)+'">'+d.hr+'</span>':'<span class="v num" style="color:var(--mut)">–</span>';
     el.querySelector('.in').innerHTML=
       '<div class="rk num">'+(i+1)+'</div>'+
-      '<div class="nm"><b>'+esc(d.n||'Uden navn')+'</b><span>'+esc([d.m,status].filter(Boolean).join(' · ')||' ')+'</span></div>'+
+      '<div class="nm"><div class="nmt"><b>'+esc(d.n||'Uden navn')+'</b><span>'+esc([d.m,status].filter(Boolean).join(' · ')||' ')+'</span></div><div class="trk"><i style="width:'+pc.toFixed(1)+'%"></i><em></em></div></div>'+
       '<div class="c'+(SORT==='d'?' srt':'')+'">'+dcell+'</div>'+
-      '<div class="c'+(SORT==='w'?' srt':'')+'"><span class="v num">'+(o.stale?'–':(d.w||0))+'</span><span class="u">W</span><div class="bar"><i style="width:'+(running?Math.round(100*(d.w||0)/maxW):0)+'%"></i></div></div>'+
-      '<div class="c x sm'+(SORT==='aw'?' srt':'')+'"><span class="v num">'+(d.aw!=null?d.aw:'–')+'</span><span class="u">W</span><div class="sub">'+(d.mw?'maks '+d.mw:'')+'</div></div>'+
+      '<div class="c'+(SORT==='w'?' srt':'')+'"><span class="v num">'+(o.stale?'–':(d.w||0))+'</span><span class="u">W</span><div class="sub">'+(d.mw?'maks '+d.mw:'')+'</div></div>'+
+      '<div class="c x sm'+(SORT==='av'?' srt':'')+'"><span class="v num">'+(running&&kmh(d)>0?fmtV(kmh(d)):'–')+'</span><span class="u">km/t</span><div class="sub">'+(avgKmh(d)>0?'gns '+fmtV(avgKmh(d)):'')+'</div></div>'+
       '<div class="c y sm"><span class="v num">'+(running&&d.s?d.s:'–')+'</span><div class="sub"></div></div>'+
       '<div class="c">'+hr+'<div class="sub">'+(d.hr&&d.z?'zone '+d.z:'')+'</div></div>'+
       '<div class="c x sm"><span class="v num">'+mmss(t)+'</span><div class="sub"></div></div>';
@@ -263,7 +269,7 @@ function render(){
 }
 
 document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{SORT=b.dataset.s;try{localStorage.setItem('tavle_sort',SORT)}catch(e){}render()});
-document.addEventListener('keydown',e=>{const k={'1':'d','2':'w','3':'aw'}[e.key];if(k){SORT=k;render()}if(e.key==='f')fs()});
+document.addEventListener('keydown',e=>{const k={'1':'d','2':'w','3':'av'}[e.key];if(k){SORT=k;render()}if(e.key==='f')fs()});
 function fs(){const d=document.documentElement;try{if(document.fullscreenElement)document.exitFullscreen();else (d.requestFullscreen||d.webkitRequestFullscreen||function(){}).call(d)}catch(e){}}
 $('fs').onclick=fs;
 // keep the screen awake

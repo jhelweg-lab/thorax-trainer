@@ -128,7 +128,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.14</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.15</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -919,7 +919,8 @@ function liveShow(){
 function livePayload(){
   const now=performance.now()/1000,el=T.elapsed(),aw=wattAvg(),o={n:(S.user||'').trim().slice(0,24),r:T.running?1:0,
     w:Math.round(wattNow()),s:Math.round(spm(now)||0),d:Math.round(session.dist),t:Math.round(el)};
-  if(aw!=null)o.aw=Math.round(aw);if(session.maxW)o.mw=Math.round(session.maxW);
+  if(aw!=null)o.aw=Math.round(aw);
+  o.v=Math.round(nsSpeed(wattNow())*36)/10;if(session.speedN>5)o.av=Math.round(session.dist/session.speedN*36)/10;if(session.maxW)o.mw=Math.round(session.maxW);
   try{if(dev&&dev.gatt&&dev.gatt.connected){const m=(S.known||{})[dev.id];if(m)o.m=String(m).slice(0,20)}}catch(e){}
   if(S.liveHR){const b=hrNow();if(b){o.hr=b;o.z=hrZone()}}
   if(S.tmode==='prog'){const g=progState();if(g){o.pn=String(g.name).slice(0,30);o.st=String(g.text).slice(0,60);o.pp=g.pos;if(g.isTime&&g.st.t!=null)o.sr=Math.round(g.main)}}
