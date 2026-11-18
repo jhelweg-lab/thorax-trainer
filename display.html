@@ -130,7 +130,7 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
 </div>
 
 <div id="set">
-  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.17</span>
+  <button id="bClose" class="pri">Luk indstillinger</button> <span class="note" style="margin-left:8px">Version 2.19</span>
   <h2>Felter</h2>
   <label><span>Antal felter</span><select id="nf"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
   <div id="fsel"></div>
@@ -166,6 +166,8 @@ textarea{width:100%;height:130px;background:var(--ta);color:var(--fg);border:1px
   <label><span><input type="checkbox" id="beep" style="min-width:auto"> Bip ved skift</span></label>
   <label><span>Lydstyrke</span><input type="range" id="vol" min="0.3" max="1.25" step="0.05" style="flex:1"></label>
   <button id="vTest">Test lyd</button>
+  <label><span><input type="checkbox" id="mix" style="min-width:auto"> Spil sammen med musik (Tidal, Spotify …)</span></label>
+  <p class="note">Slået til: din musik fortsætter, og bip/metronom lægges oven i. Men så følger appens lyd telefonens lydløs-knap – står den på lydløs, høres bip og metronom ikke.<br>Slået fra: appen tager lyden, så den også høres på lydløs – men musik fra andre apps stopper.</p>
   <label><span><input type="checkbox" id="metro" style="min-width:auto"> Metronom ved F-mål i program</span></label>
   <p class="note">Appen kan køre som timer og metronom uden at være forbundet – fx mens Nordic Strong-appen er forbundet til maskinen.</p>
   <h2>Farver</h2>
@@ -219,7 +221,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 
 /* ---------- settings ---------- */
 const DEF={fields:['spm','timer','watt','avgwatt','dist','clock'],kg:80,scale:0.01,cal:false,wK:0.000836,wA:13.6,wB:[0.083,0.083,0.083,0.11,0.14,0.155,0.22,0.254,0.328,0.375],wv:7,dC:0.299,dN:0.610,
-  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,theme:'dark',showLvl:false,stW:'',stId:'',stAuto:false,st:null,live:false,liveRoom:'',liveHR:true,liveW:'',liveId:''};
+  tmode:'up',prog:0,pcustom:'',allDev:false,hrmax:185,nf:6,font:'sf',fz:1,tdown:10,tdist:5000,twork:30,trest:30,trounds:8,beep:true,metro:true,vol:1,level:5,autoM:true,user:'',autoStart:true,theme:'dark',mix:false,showLvl:false,stW:'',stId:'',stAuto:false,st:null,live:false,liveRoom:'',liveHR:true,liveW:'',liveId:''};
 let S=JSON.parse(JSON.stringify(DEF));
 try{const x=JSON.parse(localStorage.getItem('nsd1')||'null');if(x)S=Object.assign(S,x)}catch(e){}
 if(S.wv!==7){S.wK=DEF.wK;S.wA=DEF.wA;S.wB=DEF.wB.slice();S.dC=DEF.dC;S.dN=DEF.dN;S.wv=7}
@@ -444,9 +446,13 @@ function silentWavURL(){const sr=8000,n=sr/2,b=new ArrayBuffer(44+n*2),v=new Dat
   v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
   return URL.createObjectURL(new Blob([b],{type:'audio/wav'}))}
 function unlockAudio(){
-  try{if(navigator.audioSession&&navigator.audioSession.type!=='playback')navigator.audioSession.type='playback'}catch(e){}
-  try{if(!silentEl){silentEl=new Audio(silentWavURL());silentEl.loop=true;silentEl.setAttribute('playsinline','');silentEl.preload='auto'}
-    if(silentEl.paused)silentEl.play().catch(()=>{})}catch(e){}
+  // "mix with music": ambient audio mixes with other apps (but obeys the silent switch);
+  // otherwise take the audio ("playback" + silent loop) so beeps are heard even on silent - which stops other apps' music
+  const want=S.mix?'ambient':'playback';
+  try{if(navigator.audioSession&&navigator.audioSession.type!==want)navigator.audioSession.type=want}catch(e){}
+  if(S.mix){try{if(silentEl&&!silentEl.paused)silentEl.pause()}catch(e){}}
+  else{try{if(!silentEl){silentEl=new Audio(silentWavURL());silentEl.loop=true;silentEl.setAttribute('playsinline','');silentEl.preload='auto'}
+    if(silentEl.paused)silentEl.play().catch(()=>{})}catch(e){}}
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state!=='running')actx.resume();
   const b=actx.createBuffer(1,1,22050),src=actx.createBufferSource();src.buffer=b;src.connect(actx.destination);src.start(0)}catch(e){}}
 ['pointerdown','touchend','click'].forEach(ev=>document.addEventListener(ev,unlockAudio,{passive:true}));
@@ -457,7 +463,7 @@ function beep(f,d){if(!S.beep)return;try{actx=actx||new (window.AudioContext||wi
 let lastTickT=performance.now();
 function tick(){
   if(T.running&&!audioWarned&&(S.metro||S.beep)&&['prog','int','down'].includes(S.tmode)&&(!actx||actx.state!=='running')){audioWarned=true;
-    toast('Ingen lyd endnu<br><span style="font-size:.5em">Tryk én gang på skærmen for at slå lyd til.<br>Tjek også at iPad/iPhone ikke står på lydløs.</span>')}
+    toast('Ingen lyd endnu<br><span style="font-size:.5em">Tryk én gang på skærmen for at slå lyd til.<br>Tjek også at iPad/iPhone ikke står på lydløs'+(S.mix?' ("Spil sammen med musik" er slået til)':'')+'.</span>')}
   const nowT=performance.now(),gap=nowT-lastTickT;lastTickT=nowT;
   if(T.running&&gap>8000){T.start=Math.min(nowT,T.start+gap)} // app was suspended (screen locked/background): don't count that time
   if(T.running&&!T.finished&&['up','down','dist'].includes(S.tmode)&&S.autoStart){
@@ -716,7 +722,7 @@ function buildSettings(){
   const bind=(id,key,num)=>{const e=$(id);if(e.type==='checkbox'){e.checked=!!S[key];e.onchange=()=>{S[key]=e.checked;save()}}
     else{e.value=S[key];e.oninput=()=>{const v=num?parseFloat(e.value):e.value;if(!num||!isNaN(v)){S[key]=v;save()}}}};
   bind('kg','kg',1);bind('user','user');bind('wK','wK',1);bind('wA','wA',1);
-  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('liveRoom','liveRoom');bind('liveHR','liveHR');bind('liveW','liveW');{const e=$('live');e.checked=!!S.live;e.onchange=()=>{S.live=e.checked;save();if(!S.live)liveLeave();liveShow()};$('liveRoom').addEventListener('input',liveShow)}bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('theme');e.value=S.theme||'dark';e.onchange=()=>{S.theme=e.value;save();applyTheme()}}{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
+  bind('tmode','tmode');$('tmode').addEventListener('change',()=>{progReset()});bind('tdown','tdown',1);bind('tdist','tdist',1);bind('twork','twork',1);bind('trest','trest',1);bind('trounds','trounds',1);bind('beep','beep');bind('stAuto','stAuto');bind('liveRoom','liveRoom');bind('liveHR','liveHR');bind('liveW','liveW');{const e=$('live');e.checked=!!S.live;e.onchange=()=>{S.live=e.checked;save();if(!S.live)liveLeave();liveShow()};$('liveRoom').addEventListener('input',liveShow)}bind('stW','stW');bind('stId','stId');bind('autoStart','autoStart');{const e=$('theme');e.value=S.theme||'dark';e.onchange=()=>{S.theme=e.value;save();applyTheme()}}{const e=$('showLvl');e.checked=!!S.showLvl;e.onchange=()=>{S.showLvl=e.checked;save();buildLevels()}}bind('metro','metro');{const e=$('mix');e.checked=!!S.mix;e.onchange=()=>{S.mix=e.checked;save();unlockAudio()}}bind('vol','vol',1);$('vTest').onclick=()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){};click();setTimeout(click,500);setTimeout(()=>beep(800,0.12),1000)};bind('allDev','allDev');bind('hrmax','hrmax',1);
   buildProgSel();
   const pc=$('pcustom');pc.value=S.pcustom||'';
   $('pSave').onclick=()=>{S.pcustom=pc.value;save();loadPrograms();buildProgSel();const n=parsePrograms(pc.value);
@@ -936,6 +942,8 @@ function livePayload(){
   const now=performance.now()/1000,el=T.elapsed(),aw=wattAvg(),o={n:(S.user||'').trim().slice(0,24),r:T.running?1:0,
     w:Math.round(wattNow()),s:Math.round(spm(now)||0),d:Math.round(session.dist),t:Math.round(el)};
   if(aw!=null)o.aw=Math.round(aw);
+  // watt per kilo (only the ratio is sent, never the weight itself)
+  if(S.kg>=30&&S.kg<=250){o.k=Math.round(wattNow()/S.kg*100)/100;if(aw!=null)o.ak=Math.round(aw/S.kg*100)/100}
   o.v=Math.round(nsSpeed(wattNow())*36)/10;if(session.speedN>5)o.av=Math.round(session.dist/session.speedN*36)/10;if(session.maxW)o.mw=Math.round(session.maxW);
   try{if(dev&&dev.gatt&&dev.gatt.connected){const m=(S.known||{})[dev.id];if(m)o.m=String(m).slice(0,20)}}catch(e){}
   if(S.liveHR){const b=hrNow();if(b){o.hr=b;o.z=hrZone()}}

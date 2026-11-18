@@ -27,7 +27,7 @@ header{display:flex;align-items:center;gap:1.5vw;height:9vh;flex:none}
 .chips{display:flex;gap:.5vw}
 .chips button,#fs{background:var(--row);color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:.7vh 1.1vw;font-size:1.9vh;font-weight:700;cursor:pointer;font-family:inherit}
 .chips button.on{background:var(--acc);color:#111;border-color:var(--acc)}
-.grid{display:grid;grid-template-columns:minmax(0,.55fr) minmax(0,3.2fr) minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1.15fr) minmax(0,1.25fr) minmax(0,1.35fr);align-items:center;column-gap:1vw}
+.grid{display:grid;grid-template-columns:minmax(0,.55fr) minmax(0,3.2fr) minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1.05fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.25fr);align-items:center;column-gap:1vw}
 #head{flex:none;height:3.6vh;padding:0 1.2vw;color:var(--mut);font-size:1.9vh;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
 #head div{text-align:right}#head div:nth-child(1),#head div:nth-child(2){text-align:left}
 #head .srt{color:var(--acc)}
@@ -39,7 +39,7 @@ header{display:flex;align-items:center;gap:1.5vw;height:9vh;flex:none}
 .row .in{position:relative;height:100%;padding:0 1.2vw}
 .v.fin{color:var(--ok)!important}
 .nm{display:flex;align-items:center;gap:1.2vw}
-.nmt{flex:0 0 47%;min-width:0}
+.nmt{flex:0 0 54%;min-width:0}
 .trk{position:relative;flex:1;min-width:0;height:calc(var(--rh)*.26);background:rgba(255,255,255,.07);border-radius:calc(var(--rh)*.13);overflow:hidden}
 .trk i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:linear-gradient(90deg,#1a8f50,#3ddc84);box-shadow:0 0 calc(var(--rh)*.15) rgba(61,220,132,.35)}
 .row.first .trk i{background:linear-gradient(90deg,#3ddc84,#9cf5c2)}
@@ -74,13 +74,14 @@ footer b{color:var(--fg)}
 #join input{font-size:28px;padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:var(--row);color:var(--fg);text-align:center;text-transform:uppercase;width:min(320px,80vw);font-family:inherit}
 #join button{font-size:22px;font-weight:700;padding:12px 28px;border-radius:12px;border:0;background:var(--acc);color:#111;cursor:pointer;font-family:inherit}
 #join a{color:var(--mut)}
+@media (max-width:1400px) and (min-width:761px){.nmt{flex-basis:64%}}
 @media (max-width:760px){
   #app{padding:1vh 2.5vw}
   .grid{grid-template-columns:minmax(0,.4fr) minmax(0,2.3fr) minmax(0,1.5fr) minmax(0,1.15fr) minmax(0,1.1fr);column-gap:2vw}
   .grid>.x,.grid>.y{display:none}
   #step,#title small,#fs,#clock,#foot,.sub,.u{display:none}
   header{height:7vh}#title{font-size:4.6vw}
-  .chips{gap:1.2vw}.chips button{padding:.6vh 2.6vw;font-size:3.3vw}
+  .chips{gap:1vw}.chips button{padding:.6vh 1.8vw;font-size:3vw}
   #head{font-size:2.9vw;letter-spacing:.04em;padding:0 2.5vw}
   .row .in{padding:0 2.5vw}
   .rk{font-size:min(calc(var(--rh)*.42),6vw)}
@@ -89,6 +90,8 @@ footer b{color:var(--fg)}
   .hr{font-size:min(calc(var(--rh)*.38),6vw)}
   .v.fin{font-size:min(calc(var(--rh)*.32),5.2vw)!important}
   .nm{flex-direction:column;align-items:stretch;gap:0}.nmt{flex:none;width:100%}.trk{flex:none;height:6px;margin-top:4px}.trk em{width:6px}
+  #title{display:none}
+  #app.sortk .grid>.wc{display:none}#app.sortk .grid>.kc{display:block}
   footer{font-size:3vw}
 }
 </style>
@@ -101,14 +104,14 @@ footer b{color:var(--fg)}
     <div id="right">
       <span id="net">INGEN FORBINDELSE</span>
       <div class="chips" id="chips">
-        <button data-s="d">Distance</button><button data-s="w">Watt</button><button data-s="av">Gns km/t</button>
+        <button data-s="d">Distance</button><button data-s="w">Watt</button><button data-s="av">Gns km/t</button><button data-s="k">W/kg</button>
       </div>
       <button id="fs" title="Fuld skærm">⛶</button>
       <div id="clock" class="num"></div>
     </div>
   </header>
   <div id="head" class="grid">
-    <div>#</div><div>Navn</div><div data-k="d">Distance</div><div data-k="w">Watt</div><div data-k="av" class="x">Hastighed</div><div class="y">Slag/min</div><div>Puls</div><div class="x">Tid</div>
+    <div>#</div><div>Navn</div><div data-k="d">Distance</div><div data-k="w" class="wc">Watt</div><div data-k="av" class="x">Hastighed</div><div data-k="k" class="x kc">W/kg</div><div class="y">Slag/min</div><div>Puls</div><div class="x">Tid</div>
   </div>
   <div id="rows"><div id="empty"></div></div>
   <footer><span id="sum"></span><span id="foot"></span></footer>
@@ -130,8 +133,8 @@ const clean=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,20);
 const RACE=q.get('demo')==='race',DEMO=q.get('demo')==='1'||RACE;
 const ROOM=DEMO?'DEMO':clean(q.get('rum')||q.get('room'));
 const BASE=(q.get('w')||LIVE_W).replace(/\/+$/,'');
-let SORT=['d','w','av'].includes(q.get('sort'))?q.get('sort'):'d';
-try{const s=localStorage.getItem('tavle_sort');if(!q.get('sort')&&['d','w','av'].includes(s))SORT=s}catch(e){}
+let SORT=['d','w','av','k'].includes(q.get('sort'))?q.get('sort'):'d';
+try{const s=localStorage.getItem('tavle_sort');if(!q.get('sort')&&['d','w','av','k'].includes(s))SORT=s}catch(e){}
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const mmss=s=>{s=Math.max(0,Math.round(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
 // speed in km/h: sent by the app (2.15+); older apps: same formula as the app (v = 0.299·W^0.61 m/s)
@@ -178,7 +181,7 @@ async function poll(){
 const DM=[];
 function demoInit(){
   const names=['Jannik','Mette','Søren','Anne-Marie','Lars','Kirsten','Thomas','Birgitte','Henrik','Camilla'];
-  names.forEach((n,i)=>DM.push({id:'demo'+i,n,m:'Maraton '+(i+1),base:95+Math.round(Math.sin(i*2.3)*38+i*4),ph:i*1.7,d:0,E:0,t:0,mw:0,hrb:128+((i*7)%22),hasHR:i!==3&&i!==8}));
+  names.forEach((n,i)=>DM.push({id:'demo'+i,n,m:'Maraton '+(i+1),base:95+Math.round(Math.sin(i*2.3)*38+i*4),ph:i*1.7,d:0,E:0,t:0,mw:0,hrb:128+((i*7)%22),hasHR:i!==3&&i!==8,kg:[78,64,88,61,92,70,84,66,95,72][i]}));
 }
 function demoTick(dt){
   const T0=Date.now()/1000,steps=[['DS M5 (alt 6) · F40',180],['PAUSE',60],['DS M5 (alt 6) · F50',180],['PAUSE',60]];
@@ -190,7 +193,7 @@ function demoTick(dt){
       if(p.d>=5000){p.d=5000;p.fin=true}
       const d={n:p.n,m:p.m,r:p.fin?0:1,w:p.fin?0:Math.round(w),aw:Math.round(p.E/p.t),mw:Math.round(p.mw),s:p.fin?0:Math.round(42+4*Math.sin(T0/5+p.ph)),d:Math.round(p.d),t:Math.round(p.t),g:5000,gd:Math.round(p.d),gt:Math.round(p.t),f:p.fin?1:0};
       if(p.hasHR){const hr=Math.round(p.hrb+22+5*Math.sin(T0/11+p.ph));d.hr=hr;const x=hr/185;d.z=x>=.9?5:x>=.8?4:x>=.7?3:x>=.6?2:x>=.5?1:0}
-      p.last=d;P.set(p.id,{d,ts:Date.now(),seen:Date.now()})});return}
+      d.k=+(d.w/p.kg).toFixed(2);d.ak=+(d.aw/p.kg).toFixed(2);p.last=d;P.set(p.id,{d,ts:Date.now(),seen:Date.now()})});return}
   DM.forEach((p,i)=>{
     p.t+=dt;
     const w=rest?Math.max(0,8+6*Math.sin(T0/3+p.ph)):Math.max(20,p.base+14*Math.sin(T0/7+p.ph)+8*Math.sin(T0/2.3+i));
@@ -198,6 +201,7 @@ function demoTick(dt){
     const hr=Math.round(p.hrb+(rest?-14:8)+6*Math.sin(T0/11+p.ph)+w/12);
     const d={n:p.n,m:p.m,r:1,w:Math.round(w),aw:Math.round(p.E/p.t),mw:Math.round(p.mw),s:rest?0:Math.round(40+4*Math.sin(T0/5+p.ph)+(si===2?10:0)),d:Math.round(p.d),t:Math.round(p.t),
       pn:'Nov – torsdage',st:steps[si][0],sr:Math.round(steps[si][1]-ph)};
+    d.k=+(d.w/p.kg).toFixed(2);d.ak=+(d.aw/p.kg).toFixed(2);
     if(p.hasHR){d.hr=hr;const x=hr/185;d.z=x>=.9?5:x>=.8?4:x>=.7?3:x>=.6?2:x>=.5?1:0}
     const stale=(i===8&&p.t%40>28);
     if(!stale)P.set(p.id,{d,ts:Date.now(),seen:Date.now()});
@@ -206,7 +210,8 @@ function demoTick(dt){
 
 /* ---------- render ---------- */
 const rowsEl=$('rows'),els=new Map();
-function val(o,k){const d=o.d;return k==='d'?(d.d||0):k==='w'?(o.stale||!d.r?-1:(d.w||0)):avgKmh(d)}
+function val(o,k){const d=o.d;return k==='d'?(d.d||0):k==='w'?(o.stale||!d.r?-1:(d.w||0)):k==='k'?(d.ak!=null?+d.ak:-1):avgKmh(d)}
+const fmtK=v=>(+v).toFixed(2).replace('.',',');
 function render(){
   const now=Date.now(),list=[];
   P.forEach((o,id)=>{o.id=id;o.stale=now-o.seen>9000;list.push(o)});
@@ -217,7 +222,7 @@ function render(){
   const byName=(a,b)=>String(a.d.n).localeCompare(String(b.d.n),'da');
   if(race&&SORT==='d')list.sort((a,b)=>(b.rc-a.rc)||(b.fin-a.fin)||(a.fin&&b.fin?(a.d.gt||0)-(b.d.gt||0):0)||(b.gd-a.gd)||(b.d.d||0)-(a.d.d||0)||byName(a,b));
   else list.sort((a,b)=>val(b,SORT)-val(a,SORT)||(b.d.d||0)-(a.d.d||0)||byName(a,b));
-  rowsEl.classList.toggle('race',race&&SORT==='d');
+  rowsEl.classList.toggle('race',race&&SORT==='d');$('app').classList.toggle('sortk',SORT==='k');
   const n=list.length,H=rowsEl.clientHeight,rh=Math.max(34,Math.min(H/Math.max(n,5),H*0.2));
   rowsEl.style.setProperty('--rh',rh+'px');
   $('empty').style.display=n?'none':'flex';
@@ -245,8 +250,9 @@ function render(){
       '<div class="rk num">'+(i+1)+'</div>'+
       '<div class="nm"><div class="nmt"><b>'+esc(d.n||'Uden navn')+'</b><span>'+esc([d.m,status].filter(Boolean).join(' · ')||' ')+'</span></div><div class="trk"><i style="width:'+pc.toFixed(1)+'%"></i><em></em></div></div>'+
       '<div class="c'+(SORT==='d'?' srt':'')+'">'+dcell+'</div>'+
-      '<div class="c'+(SORT==='w'?' srt':'')+'"><span class="v num">'+(o.stale?'–':(d.w||0))+'</span><span class="u">W</span><div class="sub">'+(d.mw?'maks '+d.mw:'')+'</div></div>'+
+      '<div class="c wc'+(SORT==='w'?' srt':'')+'"><span class="v num">'+(o.stale?'–':(d.w||0))+'</span><span class="u">W</span><div class="sub">'+(d.mw?'maks '+d.mw:'')+'</div></div>'+
       '<div class="c x sm'+(SORT==='av'?' srt':'')+'"><span class="v num">'+(running&&kmh(d)>0?fmtV(kmh(d)):'–')+'</span><span class="u">km/t</span><div class="sub">'+(avgKmh(d)>0?'gns '+fmtV(avgKmh(d)):'')+'</div></div>'+
+      '<div class="c x kc sm'+(SORT==='k'?' srt':'')+'"><span class="v num">'+(d.k!=null&&running?fmtK(d.k):'–')+'</span><div class="sub">'+(d.ak!=null?'gns '+fmtK(d.ak):(d.k==null?'ingen vægt':''))+'</div></div>'+
       '<div class="c y sm"><span class="v num">'+(running&&d.s?d.s:'–')+'</span><div class="sub"></div></div>'+
       '<div class="c">'+hr+'<div class="sub">'+(d.hr&&d.z?'zone '+d.z:'')+'</div></div>'+
       '<div class="c x sm"><span class="v num">'+mmss(t)+'</span><div class="sub"></div></div>';
@@ -269,7 +275,7 @@ function render(){
 }
 
 document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>{SORT=b.dataset.s;try{localStorage.setItem('tavle_sort',SORT)}catch(e){}render()});
-document.addEventListener('keydown',e=>{const k={'1':'d','2':'w','3':'av'}[e.key];if(k){SORT=k;render()}if(e.key==='f')fs()});
+document.addEventListener('keydown',e=>{const k={'1':'d','2':'w','3':'av','4':'k'}[e.key];if(k){SORT=k;render()}if(e.key==='f')fs()});
 function fs(){const d=document.documentElement;try{if(document.fullscreenElement)document.exitFullscreen();else (d.requestFullscreen||d.webkitRequestFullscreen||function(){}).call(d)}catch(e){}}
 $('fs').onclick=fs;
 // keep the screen awake
